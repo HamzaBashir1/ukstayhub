@@ -1,0 +1,68 @@
+{
+ "en": {
+  "title": "Frequently Asked Questions",
+  "description": "Have questions? We have answers. Explore below to find more details",
+  "customersLabel": "For Customers",
+  "providersLabel": "For Providers",
+  "customers": [
+   {
+    "question": "Does UK Stay Hub charge guests a service fee?",
+    "answer": "No. UK Stay Hub.sk charges guests no service fee – it is £0. You pay only the accommodation price set by the host. If a host charges anything extra, you will see it in the listing details before you book."
+   },
+   {
+    "question": "What information is required for registration?",
+    "answer": "To create an account, you only need a valid email address and basic contact details. After registering, you can create a profile, save favourite accommodations, and easily book stays. No unnecessary forms — registration takes just a few minutes."
+   },
+   {
+    "question": "How does the booking process work?",
+    "answer": "You choose accommodation, fill in your stay details, and send a request. The host confirms the booking and the money goes directly to their account. We will inform you about every step via email or in the app."
+   },
+   {
+    "question": "What if the host does not respond or does not confirm the booking?",
+    "answer": "If the host does not confirm within the required time, no payment is made, and you can choose another date or accommodation. If needed, our support team is ready to help you with your selection."
+   },
+   {
+    "question": "How do I know what is included in the price?",
+    "answer": "All information about the price, fees, rules, and services is available directly in the accommodation details before booking. The host decides what is included and what requires an additional fee."
+   },
+   {
+    "question": "Can I save an accommodation for later?",
+    "answer": "Yes, just click “Add to favourites”. Saved listings can be found in your profile and you can return to them anytime."
+   },
+   {
+    "question": "Can I request an invoice?",
+    "answer": "Yes, the host can issue an invoice directly since the payment goes to their account. Just request it during the booking process or during your stay."
+   }
+  ],
+  "providers": [
+   {
+    "question": "I want to offer my accommodation. How do I start?",
+    "answer": "Simply register on UK STAY HUB, create your accommodation profile, and follow our easy setup guide. Once approved, your listing becomes instantly visible to guests and you can start receiving bookings."
+   },
+   {
+    "question": "What information do I need to register?",
+    "answer": "To create an account, you only need a valid email address and basic contact details. Later, when adding your accommodation, you will include property details, photos, description, price, and payout method so we can ensure smooth and direct payments to your account."
+   },
+   {
+    "question": "How do I receive new enquiries and bookings from guests?",
+    "answer": "We present your accommodation on our platform so guests can easily find it. We also promote it continuously through marketing campaigns, social media, SEO, and partner channels. Guests can contact you directly through your accommodation profile, so enquiries and bookings come directly to you."
+   },
+   {
+    "question": "Who sets the prices and stay rules?",
+    "answer": "Prices, stay conditions, and guest rules are fully determined by you as the host. UK STAY HUB provides tools and support, but you have complete control over how you offer your accommodation."
+   },
+   {
+    "question": "Does UK STAY HUB interfere in the booking process?",
+    "answer": "No. UK STAY HUB acts as a mediator connecting guests with hosts, but does not interfere with your internal reservation process or communication with guests. Payments go directly to you, and you manage all conditions independently. The platform simply makes it easier to find guests and manage stays."
+   },
+   {
+    "question": "How do payments from clients for accommodation and services work?",
+    "answer": "Payments from guests go directly to your account."
+   },
+   {
+    "question": "Is it possible to synchronise the occupancy calendar with other portals?",
+    "answer": "Yes. UK STAY HUB supports calendar synchronisation through iCal connections, allowing you to easily align availability with other platforms (e.g., Airbnb, Booking, and others). This minimizes the risk of double bookings and saves time when managing availability."
+   }
+  ]
+ }
+}

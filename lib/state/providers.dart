@@ -1,0 +1,144 @@
+import 'dart:convert';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../core/format.dart';
+import '../core/json.dart';
+import '../core/storage.dart';
+import '../data/models.dart';
+import '../data/repo.dart';
+import 'auth.dart';
+
+// ───────────────────────────── Home page data ─────────────────────────────
+final listingStatsProvider = FutureProvider<Json>((ref) => publicRepo.listingStats());
+final recommendedProvider = FutureProvider<List<Listing>>((ref) => publicRepo.recommended());
+final latestProvider = FutureProvider<List<Listing>>((ref) => publicRepo.latest());
+/// Cities with live stay counts – the catalog the destination suggestions
+/// filter as you type. The last copy is kept on the phone so suggestions are
+/// instant even while the backend is still waking up; a fresh copy is fetched
+/// in the background and used from the next time the list is needed.
+const _kDestinations = 'destinationsCatalog';
+final destinationsProvider = FutureProvider<List<Json>>((ref) async {
+  Future<List<Json>> fetchAndStore() async {
+    final fresh = await publicRepo.destinations();
+    if (fresh.isNotEmpty) await Prefs.putString(_kDestinations, jsonEncode(fresh));
+    return fresh;
+  }
+
+  final saved = Prefs.getString(_kDestinations);
+  if (saved != null) {
+    try {
+      final cached = asMapList(jsonDecode(saved));
+      if (cached.isNotEmpty) {
+        fetchAndStore().ignore();
+        return cached;
+      }
+    } catch (_) {
+      // A damaged copy is simply replaced below.
+    }
+  }
+  return fetchAndStore();
+});
+
+/// Tourism regions (utils/tourismRegions.js) with live counts, built the same
+/// way as buildTourismRegionCards on the site.
+final tourismRegionsProvider = FutureProvider<List<Json>>((ref) async {
+  final raw = await rootBundle.loadString('assets/data/regions.json');
+  return asMapList(jsonDecode(raw));
+});
+
+final regionCardsProvider = FutureProvider<List<Region>>((ref) async {
+  final regions = await ref.watch(tourismRegionsProvider.future);
+  final dest = await ref.watch(destinationsProvider.future);
+  final byCity = <String, int>{};
+  for (final d in dest) {
+    final k = searchKey(asString(d['nameSk']));
+    byCity[k] = (byCity[k] ?? 0) + asInt(d['count']);
+  }
+  final out = <Region>[];
+  for (final r in regions) {
+    final keys = asStringList(r['cities']).map(searchKey).toSet();
+    final count = keys.fold<int>(0, (a, k) => a + (byCity[k] ?? 0));
+    if (count > 0) out.add(Region(r, count: count));
+  }
+  out.sort((a, b) => b.count != a.count ? b.count.compareTo(a.count) : a.name('en').compareTo(b.name('en')));
+  return out;
+});
+
+/// Local London area artwork bundled with the app (assets/images/destinations).
+const destinationImages = {
+  'westminster': 'westminster',
+  'kensington': 'kensington',
+  'camden': 'camden',
+  'city': 'city',
+  'southbank': 'southbank',
+  'greenwich': 'greenwich',
+  'richmond': 'richmond',
+};
+
+String? destinationAsset(String regionId) {
+  final base = destinationImages[regionId];
+  return base == null ? null : 'assets/images/destinations/$base.webp';
+}
+
+// ───────────────────────────── Listing page ─────────────────────────────
+final listingProvider = FutureProvider.family<Listing, String>((ref, slug) => publicRepo.listingBySlug(slug));
+final reviewsProvider = FutureProvider.family<List<Json>, String>((ref, id) => publicRepo.reviews(id));
+final hostPublicProvider = FutureProvider.family<Json, String>((ref, id) => publicRepo.host(id));
+
+final similarProvider = FutureProvider.family<List<Listing>, ({String city, String excludeId})>((ref, a) async {
+  if (a.city.isEmpty) return const [];
+  final page = await publicRepo.search({'city': a.city, 'page': 1, 'limit': 8, 'fields': 'card'});
+  return page.items.where((l) => l.id != a.excludeId).take(6).toList();
+});
+
+// ───────────────────────────── Favorites ─────────────────────────────
+/// Ids of saved stays; optimistic toggle, reverted if the server refuses.
+class FavoritesNotifier extends AsyncNotifier<Set<String>> {
+  @override
+  Future<Set<String>> build() async {
+    final auth = ref.watch(authProvider);
+    if (!auth.loggedIn || auth.isHost) return <String>{};
+    try {
+      final list = await guestRepo.favorites();
+      return list.map((l) => l.id).toSet();
+    } catch (_) {
+      return <String>{};
+    }
+  }
+
+  Future<void> toggle(String id) async {
+    final current = {...(state.valueOrNull ?? <String>{})};
+    final adding = !current.contains(id);
+    adding ? current.add(id) : current.remove(id);
+    state = AsyncData(current);
+    try {
+      adding ? await guestRepo.addFavorite(id) : await guestRepo.removeFavorite(id);
+      ref.invalidate(favoriteListingsProvider);
+    } catch (e) {
+      final revert = {...current};
+      adding ? revert.remove(id) : revert.add(id);
+      state = AsyncData(revert);
+      rethrow;
+    }
+  }
+}
+
+final favoritesProvider = AsyncNotifierProvider<FavoritesNotifier, Set<String>>(FavoritesNotifier.new);
+final favoriteListingsProvider = FutureProvider<List<Listing>>((ref) => guestRepo.favorites());
+final myReservationsProvider = FutureProvider<List<GuestReservation>>((ref) => guestRepo.reservations());
+
+// ───────────────────────────── Blog ─────────────────────────────
+final blogsProvider = FutureProvider<List<Json>>((ref) => publicRepo.blogs());
+final blogProvider = FutureProvider.family<Json, String>((ref, slug) => publicRepo.blogBySlug(slug));
+
+// ───────────────────────────── Option lists ─────────────────────────────
+/// host/accommodationOptions.js exported to JSON: property types, amenity
+/// groups, policies… The English side is what the API stores and filters on.
+final optionsProvider = FutureProvider<Json>((ref) async {
+  final raw = await rootBundle.loadString('assets/data/options.json');
+  return asMap(jsonDecode(raw));
+});
+
+String optLabel(Json option, String lang) => asString(option['en_GB'], asString(option['en']));
