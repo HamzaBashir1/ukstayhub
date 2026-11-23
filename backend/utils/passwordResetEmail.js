@@ -31,7 +31,7 @@ Platnosť odkazu: ${expiresInHours} hodina od odoslania tohto e-mailu.
 
 Ak ste o obnovenie hesla nežiadali, tento e-mail môžete ignorovať — vaše heslo zostáva nezmenené.
 
-Ak potrebujete pomoc, napíšte nám na support@putko.sk.
+Ak potrebujete pomoc, napíšte nám na support@ukstayhub.co.uk.
 
 ${TEXT_SIGNOFF}`;
 
@@ -67,7 +67,7 @@ ${TEXT_SIGNOFF}`;
 
     <p style="margin:0;">
       Potrebujete pomoc? Napíšte nám na
-      <a href="mailto:support@putko.sk" style="color:${TEAL_LIGHT};">support@putko.sk</a>.
+      <a href="mailto:support@ukstayhub.co.uk" style="color:${TEAL_LIGHT};">support@ukstayhub.co.uk</a>.
     </p>`,
   });
 
@@ -84,7 +84,7 @@ Heslo k vášmu účtu na Putko.sk bolo práve zmenené.
 
 Ak ste túto zmenu vykonali vy, nemusíte robiť nič ďalšie.
 
-Ak ste heslo nemenili, ihneď nás kontaktujte na support@putko.sk — váš účet môže byť ohrozený.
+Ak ste heslo nemenili, ihneď nás kontaktujte na support@ukstayhub.co.uk — váš účet môže byť ohrozený.
 
 ${TEXT_SIGNOFF}`;
 
@@ -102,7 +102,7 @@ ${TEXT_SIGNOFF}`;
 
     ${callout(
       `<strong>Nemenili ste heslo?</strong> Ihneď nás kontaktujte na
-       <a href="mailto:support@putko.sk" style="color:${TEAL_LIGHT};">support@putko.sk</a> —
+       <a href="mailto:support@ukstayhub.co.uk" style="color:${TEAL_LIGHT};">support@ukstayhub.co.uk</a> —
        váš účet môže byť ohrozený.`,
       "warning"
     )}

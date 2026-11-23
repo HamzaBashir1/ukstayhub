@@ -1528,6 +1528,17 @@ final _marketStatsProvider = FutureProvider.family<Json, String>((ref, citiesKey
   return publicRepo.marketStats(cities);
 });
 
+/// One line under the city name on the region photo, matching its picture.
+const _regionTaglines = {
+  'london': 'Westminster, the South Bank and riverside stays in the heart of London.',
+  'birmingham': 'Canals, the Bullring and the Jewellery Quarter in the heart of the Midlands.',
+  'manchester': 'Red-brick mills, the Northern Quarter and city-centre stays.',
+  'edinburgh': 'The Castle, the Old Town and Georgian streets of the New Town.',
+  'glasgow': 'The Clyde waterfront, the West End and Merchant City.',
+  'liverpool': 'The Three Graces, Albert Dock and the Mersey waterfront.',
+  'bristol': 'Clifton, the Harbourside and the Avon Gorge.',
+};
+
 class _RegionSection extends ConsumerWidget {
   const _RegionSection({required this.regionId, required this.total, required this.hp, required this.onBrowse});
   final String regionId;
@@ -1642,7 +1653,7 @@ class _RegionSection extends ConsumerWidget {
                   Text(en ? nameEn : nameSk, style: AppText.fraunces(size: 30, color: Colors.white)),
                   const SizedBox(height: 4),
                   Text(
-                    'Stays, sights and neighbourhood life in the heart of London.',
+                    _regionTaglines[regionId] ?? 'Stays, sights and neighbourhood life across $nameEn.',
                     style: AppText.inter(size: 14, color: Colors.white),
                   ),
                 ]),

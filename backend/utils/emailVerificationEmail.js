@@ -39,7 +39,7 @@ Platnosť odkazu: ${expiresInHours} hodina od odoslania tohto e-mailu. Po jej up
 
 Ak ste sa neregistrovali, tento e-mail môžete ignorovať — bez potvrdenia sa účet neaktivuje.
 
-Ak potrebujete pomoc, napíšte nám na support@putko.sk.
+Ak potrebujete pomoc, napíšte nám na support@ukstayhub.co.uk.
 
 ${TEXT_SIGNOFF}`;
 
@@ -74,7 +74,7 @@ ${TEXT_SIGNOFF}`;
 
     <p style="margin:0;">
       Potrebujete pomoc? Napíšte nám na
-      <a href="mailto:support@putko.sk" style="color:${TEAL_LIGHT};">support@putko.sk</a>.
+      <a href="mailto:support@ukstayhub.co.uk" style="color:${TEAL_LIGHT};">support@ukstayhub.co.uk</a>.
     </p>`,
   });
 
@@ -95,7 +95,7 @@ vaša e-mailová adresa bola úspešne potvrdená a váš účet na Putko.sk je 
 Teraz sa môžete prihlásiť a začať:
 ${SITE}/login
 
-Ak potrebujete pomoc, napíšte nám na support@putko.sk.
+Ak potrebujete pomoc, napíšte nám na support@ukstayhub.co.uk.
 
 ${TEXT_SIGNOFF}`;
 
@@ -114,7 +114,7 @@ ${TEXT_SIGNOFF}`;
 
     <p style="margin:0;">
       Potrebujete pomoc? Napíšte nám na
-      <a href="mailto:support@putko.sk" style="color:${TEAL_LIGHT};">support@putko.sk</a>.
+      <a href="mailto:support@ukstayhub.co.uk" style="color:${TEAL_LIGHT};">support@ukstayhub.co.uk</a>.
     </p>`,
   });
 

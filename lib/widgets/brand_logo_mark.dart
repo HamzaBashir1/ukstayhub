@@ -5,10 +5,11 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 
-/// The UK Stay Hub mark – a map pin with a house (and its door) cut out –
-/// as vector paths, so it can be drawn stroke-by-stroke and then filled for the
-/// launch animation. Same geometry as tool/brand/make_icons.py, which renders
-/// the app icons.
+/// The UK Stay Hub mark – a soft-cornered house with a chimney whose doorway
+/// is a map pin (cut out), with a gold dot in the pin, the "hub" – as vector
+/// paths, so it can be drawn stroke-by-stroke and then filled for the launch
+/// animation. Same geometry as tool/brand/make_icons.py, which renders the app
+/// icons and PNG logos.
 ///
 /// Geometry lives in a 500×500 design box and is built once, then scaled.
 class StayHubMarkPaths {
@@ -17,63 +18,67 @@ class StayHubMarkPaths {
   static const designSize = 500.0;
   static const teal = Color(0xFF01A48F);
   static const deep = Color(0xFF077B68);
+  static const gold = Color(0xFFDFBA73);
 
-  static const _c = Offset(250, 190);
-  static const _r = 175.0;
-  static const _tip = Offset(250, 485);
+  static const _pinC = Offset(250, 318);
+  static const _pinR = 84.0;
+  static const _pinTip = Offset(250, 440);
 
-  /// Whole silhouette: pin, with the house punched out and the door left in.
-  static final Path full = _buildFull();
+  /// Whole silhouette: the house with the pin-shaped doorway punched out.
+  static final Path full = Path.combine(PathOperation.difference, _house(), _pin());
 
-  /// The darker left-hand half of the mark.
-  static final Path dark = Path.combine(
-    PathOperation.intersect,
-    full,
-    Path()..addRect(const Rect.fromLTRB(0, 0, 250, 500)),
-  );
+  /// The gold hub dot inside the pin.
+  static final Path dot = Path()..addOval(Rect.fromCircle(center: _pinC, radius: 33));
 
   /// Outline contours with their lengths, measured once.
   static final List<ui.PathMetric> outline = full.computeMetrics().toList(growable: false);
   static final double outlineLength = outline.fold(0.0, (s, m) => s + m.length);
 
-  static Path _buildFull() {
+  static Path _house() {
+    const k = (214 - 34) / (446 - 250); // roof slope
+    const pts = [
+      Offset(250, 34),
+      Offset(338, 34 + k * 88), Offset(338, 66), Offset(380, 66), Offset(380, 34 + k * 130), // chimney
+      Offset(446, 214), Offset(446, 470), Offset(54, 470), Offset(54, 214),
+    ];
+    const radii = [44.0, 6.0, 6.0, 6.0, 6.0, 38.0, 40.0, 40.0, 38.0];
+    Offset toward(Offset a, Offset b, double d) => a + (b - a) / (b - a).distance * d;
+    final path = Path();
+    for (var i = 0; i < pts.length; i++) {
+      final p0 = pts[(i - 1 + pts.length) % pts.length], p1 = pts[i], p2 = pts[(i + 1) % pts.length];
+      final a = toward(p1, p0, radii[i]), b = toward(p1, p2, radii[i]);
+      i == 0 ? path.moveTo(a.dx, a.dy) : path.lineTo(a.dx, a.dy);
+      path.quadraticBezierTo(p1.dx, p1.dy, b.dx, b.dy);
+    }
+    return path..close();
+  }
+
+  static Path _pin() {
     // Tangent points from the tip to the circle.
-    final th = math.acos(_r / (_tip.dy - _c.dy));
-    final dx = _r * math.sin(th), dy = _r * math.cos(th);
-    final pin = Path.combine(
+    final th = math.acos(_pinR / (_pinTip.dy - _pinC.dy));
+    final dx = _pinR * math.sin(th), dy = _pinR * math.cos(th);
+    return Path.combine(
       PathOperation.union,
-      Path()..addOval(Rect.fromCircle(center: _c, radius: _r)),
+      Path()..addOval(Rect.fromCircle(center: _pinC, radius: _pinR)),
       Path()
-        ..moveTo(_c.dx - dx, _c.dy + dy)
-        ..lineTo(_c.dx + dx, _c.dy + dy)
-        ..lineTo(_tip.dx, _tip.dy)
+        ..moveTo(_pinC.dx - dx, _pinC.dy + dy)
+        ..lineTo(_pinC.dx + dx, _pinC.dy + dy)
+        ..lineTo(_pinTip.dx, _pinTip.dy)
         ..close(),
     );
-    final house = Path()
-      ..moveTo(250, 92)
-      ..lineTo(362, 196)
-      ..lineTo(332, 196)
-      ..lineTo(332, 290)
-      ..lineTo(168, 290)
-      ..lineTo(168, 196)
-      ..lineTo(138, 196)
-      ..close();
-    final door = Path()..addRect(const Rect.fromLTRB(228, 232, 272, 290));
-    return Path.combine(PathOperation.union, Path.combine(PathOperation.difference, pin, house), door);
   }
 }
 
 /// A static brand mark at any size (no animation).
 class StayHubMark extends StatelessWidget {
-  const StayHubMark({super.key, this.size = 32, this.light, this.dark});
+  const StayHubMark({super.key, this.size = 32, this.color});
   final double size;
-  final Color? light;
-  final Color? dark;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) => CustomPaint(
         size: Size.square(size),
-        painter: StayHubMarkPainter(trace: 0, fill: 1, light: light, dark: dark),
+        painter: StayHubMarkPainter(trace: 0, fill: 1, color: color),
       );
 }
 
@@ -90,7 +95,7 @@ class StayHubLogo extends StatelessWidget {
       label: 'UK Stay Hub',
       child: ExcludeSemantics(
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          StayHubMark(size: height, light: onDark ? Colors.white : null, dark: onDark ? const Color(0xFFD6F2E9) : null),
+          StayHubMark(size: height, color: onDark ? Colors.white : null),
           SizedBox(width: height * 0.16),
           Text.rich(
             TextSpan(children: [
@@ -109,7 +114,7 @@ class StayHubLogo extends StatelessWidget {
 /// Paints the mark at any stage of the animation.
 ///
 /// * [trace] 0→1 draws the outline along its length.
-/// * [fill] 0→1 fades the two-tone fill in.
+/// * [fill] 0→1 fades the fill in.
 /// * [strokeOpacity] lets the outline fade once the fill has landed.
 class StayHubMarkPainter extends CustomPainter {
   StayHubMarkPainter({
@@ -117,12 +122,10 @@ class StayHubMarkPainter extends CustomPainter {
     required this.fill,
     this.strokeOpacity = 1,
     this.strokeColor = StayHubMarkPaths.deep,
-    this.light,
-    this.dark,
+    this.color,
   });
 
-  final Color? light;
-  final Color? dark;
+  final Color? color;
 
   final double trace;
   final double fill;
@@ -138,8 +141,8 @@ class StayHubMarkPainter extends CustomPainter {
 
     if (fill > 0) {
       final a = fill.clamp(0.0, 1.0);
-      canvas.drawPath(StayHubMarkPaths.full, Paint()..color = (light ?? StayHubMarkPaths.teal).withValues(alpha: a));
-      canvas.drawPath(StayHubMarkPaths.dark, Paint()..color = (dark ?? StayHubMarkPaths.deep).withValues(alpha: a));
+      canvas.drawPath(StayHubMarkPaths.full, Paint()..color = (color ?? StayHubMarkPaths.teal).withValues(alpha: a));
+      canvas.drawPath(StayHubMarkPaths.dot, Paint()..color = StayHubMarkPaths.gold.withValues(alpha: a));
     }
 
     if (trace > 0 && strokeOpacity > 0) {
@@ -161,7 +164,7 @@ class StayHubMarkPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(StayHubMarkPainter old) =>
-      old.trace != trace || old.fill != fill || old.strokeOpacity != strokeOpacity || old.strokeColor != strokeColor || old.light != light || old.dark != dark;
+      old.trace != trace || old.fill != fill || old.strokeOpacity != strokeOpacity || old.strokeColor != strokeColor || old.color != color;
 }
 
 /// Self-running animated logo: trace → fill → little pop.

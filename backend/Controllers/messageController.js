@@ -79,7 +79,7 @@ export async function handler(req, res) {
     // recipient, subject and body are all attacker-controlled. See the note in
     // Routes/message.js.
     let mailOptions = {
-      from: '"Putko Support" <support@putko.sk>', // Must match the authenticated email
+      from: '"UK Stay Hub Support" <support@ukstayhub.co.uk>', // Must match the authenticated email
       to: email, // Recipient email
       subject: subject || "Reservation Confirmation",
       attachments: logoAttachments(),

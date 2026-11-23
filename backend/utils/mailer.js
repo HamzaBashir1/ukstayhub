@@ -27,7 +27,7 @@ export function getTransporter() {
       port: Number(process.env.SMTP_PORT || 465),
       secure: true,
       auth: {
-        user: process.env.SMTP_USER || "support@putko.sk",
+        user: process.env.SMTP_USER || "support@ukstayhub.co.uk",
         pass,
       },
     });
@@ -35,7 +35,7 @@ export function getTransporter() {
   return cached;
 }
 
-export const MAIL_FROM = '"Putko Support" <support@putko.sk>';
+export const MAIL_FROM = '"UK Stay Hub Support" <support@ukstayhub.co.uk>';
 
 /**
  * Operational alert to the admin mailbox. Never throws — an alert failing must

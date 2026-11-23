@@ -79,7 +79,7 @@ Ak si účet neželáte, môžete ho ignorovať; vaša rezervácia platí aj tak
 
     <p style="margin:0;">
       Potrebujete pomoc? Napíšte nám na
-      <a href="mailto:support@putko.sk" style="color:${TEAL_LIGHT};">support@putko.sk</a>.
+      <a href="mailto:support@ukstayhub.co.uk" style="color:${TEAL_LIGHT};">support@ukstayhub.co.uk</a>.
     </p>`,
   });
 

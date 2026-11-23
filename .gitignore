@@ -16,3 +16,10 @@ ios/Pods/
 ios/.symlinks/
 ios/Flutter/Generated.xcconfig
 ios/Flutter/flutter_export_environment.sh
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Node
+node_modules/
+npm-debug.log*

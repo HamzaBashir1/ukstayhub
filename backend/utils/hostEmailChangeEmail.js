@@ -5,13 +5,13 @@ const COPY = {
     noticeSubject: "E-mail vášho účtu bol zmenený",
     noticeTitle: "E-mail účtu bol zmenený",
     noticeBody: (to) => `E-mailová adresa vášho hostiteľského účtu na Putko.sk bola zmenená na ${to}. Odteraz budeme všetky správy posielať tam. Vaše ponuky a rezervácie zostávajú bezo zmeny.`,
-    noticeWarn: `<strong>Nemenili ste to vy?</strong> Ihneď nás kontaktujte na <a href="mailto:support@putko.sk" style="color:${TEAL_LIGHT};">support@putko.sk</a>.`,
+    noticeWarn: `<strong>Nemenili ste to vy?</strong> Ihneď nás kontaktujte na <a href="mailto:support@ukstayhub.co.uk" style="color:${TEAL_LIGHT};">support@ukstayhub.co.uk</a>.`,
   },
   en: {
     noticeSubject: "Your account email was changed",
     noticeTitle: "Account email changed",
     noticeBody: (to) => `The email address of your Putko.sk host account was changed to ${to}. We will send all messages there from now on. Your listings and bookings are unaffected.`,
-    noticeWarn: `<strong>Wasn't you?</strong> Contact us right away at <a href="mailto:support@putko.sk" style="color:${TEAL_LIGHT};">support@putko.sk</a>.`,
+    noticeWarn: `<strong>Wasn't you?</strong> Contact us right away at <a href="mailto:support@ukstayhub.co.uk" style="color:${TEAL_LIGHT};">support@ukstayhub.co.uk</a>.`,
   },
 };
 

@@ -1610,8 +1610,8 @@ export const approveListing = async (req, res) => {
     const transporter = getTransporter();
 
     const mailOptions = {
-      from: '"Putko Support" <support@putko.sk>',
-      to: "support@putko.sk",  // Change this if you want to send it to the host's email
+      from: '"UK Stay Hub Support" <support@ukstayhub.co.uk>',
+      to: "support@ukstayhub.co.uk",  // Change this if you want to send it to the host's email
       subject: `✅ Host schválil svoju ponuku`,
       attachments: logoAttachments(),
       html: brandShell({

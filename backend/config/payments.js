@@ -76,7 +76,7 @@ export const PAYOUT_CRON = process.env.PAYOUT_CRON || "0 3 * * *";
 // host-initiated (open question #2 in the gap checklist).
 export const PAYOUT_CRON_ENABLED = bool(process.env.PAYOUT_CRON_ENABLED, true);
 
-export const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || "support@putko.sk";
+export const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || "support@ukstayhub.co.uk";
 
 /**
  * Platform fee and host payout for a given gross booking amount.

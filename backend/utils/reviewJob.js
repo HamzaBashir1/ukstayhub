@@ -31,7 +31,7 @@ export const startReviewJob = () => {
 
       for (const res of reservations) {
        const mailOptions = {
-        from: '"Putko Support" <support@putko.sk>',
+        from: '"UK Stay Hub Support" <support@ukstayhub.co.uk>',
         to: res.email, // ✅ send to guest’s email from reservation model
         subject: "⭐ We’d love your review!",
         text: `Hi ${res.name}, thanks for staying with us!`,

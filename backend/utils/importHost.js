@@ -716,7 +716,7 @@ export const importHostsFromExcel = async (filePath) => {
 
       // Send listing draft confirmation email
       const listingMailOptions = {
-        from: '"Putko Support" <support@putko.sk>',
+        from: '"UK Stay Hub Support" <support@ukstayhub.co.uk>',
         to: email,
         subject: 'Váš návrh inzerátu je pripravený na Putko',
         attachments: logoFiles,
@@ -928,7 +928,7 @@ export const importHostsFromExcel = async (filePath) => {
               <p style="font-size:16px; line-height:1.6; margin:0 0 14px 0;">
                 Ak potrebujete pomoc s nastavením platieb alebo máte akékoľvek otázky, kontaktujte
                 náš tím podpory na
-                <a href="mailto:support@putko.sk" style="color:#238869; text-decoration:underline;">support@putko.sk</a>.
+                <a href="mailto:support@ukstayhub.co.uk" style="color:#238869; text-decoration:underline;">support@ukstayhub.co.uk</a>.
                 Radi vám pomôžeme.
               </p>
 

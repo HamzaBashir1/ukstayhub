@@ -107,7 +107,7 @@ export const register = async (req, res) => {
     });
 
     await transporter.sendMail({
-      from: '"Putko Support" <support@putko.sk>',
+      from: '"UK Stay Hub Support" <support@ukstayhub.co.uk>',
       to: email,
       subject,
       html,
@@ -276,7 +276,7 @@ export const requestPasswordReset = async (req, res) => {
     });
 
     await transporter.sendMail({
-      from: '"Putko Support" <support@putko.sk>',
+      from: '"UK Stay Hub Support" <support@ukstayhub.co.uk>',
       to: email,
       subject,
       html,
@@ -295,7 +295,7 @@ const sendResetSuccessEmail = async (userEmail) => {
   const { subject, html, text, attachments } = buildPasswordResetSuccessEmail();
 
   await transporter.sendMail({
-    from: '"Putko Support" <support@putko.sk>',
+    from: '"UK Stay Hub Support" <support@ukstayhub.co.uk>',
     to: userEmail,
     subject,
     html,
@@ -401,7 +401,7 @@ export const verifyEmail = async (req, res) => {
 
     // Send verification success email
     await transporter.sendMail({
-      from: '"Putko Support" <support@putko.sk>',
+      from: '"UK Stay Hub Support" <support@ukstayhub.co.uk>',
       to: verifiedUser.email,
       subject,
       html,

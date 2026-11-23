@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
-export const SITE = (process.env.EMAIL_SITE_URL || "https://putko.sk").replace(/\/+$/, "");
+export const SITE = (process.env.EMAIL_SITE_URL || "https://ukstayhub.co.uk").replace(/\/+$/, "");
 
 // Brand palette, taken from the frontend (tailwind classes and the logo).
 export const FOREST = "#1E3E2B";     // deep green — headings, footer
@@ -13,14 +14,16 @@ export const MUTED = "#6B7280";      // secondary copy
 export const PAGE_BG = "#F4F6F4";
 export const HAIRLINE = "#E4E9E5";
 
-const LOGO_CID = "putko-logo";
+const LOGO_CID = "ukstayhub-logo";
+const LOGO_NAME = "ukstayhub-logo.png";
 
 const LOGO_FILE = (() => {
   const candidates = [
     process.env.EMAIL_LOGO_PATH,
-    path.resolve(process.cwd(), "assets/putko.png"),
-    path.resolve(process.cwd(), "../frontend/public/putko.png"),
-    path.resolve(process.cwd(), "public/putko.png"),
+    // Resolved from this file, so it works whatever directory the server starts in.
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../assets", LOGO_NAME),
+    path.resolve(process.cwd(), "assets", LOGO_NAME),
+    path.resolve(process.cwd(), "public", LOGO_NAME),
   ].filter(Boolean);
 
   for (const candidate of candidates) {
@@ -49,9 +52,9 @@ export function esc(value) {
 
 /** Attachment list carrying the inline logo; pass straight to sendMail. */
 export const logoAttachments = () =>
-  LOGO_FILE ? [{ filename: "putko.png", path: LOGO_FILE, cid: LOGO_CID }] : [];
+  LOGO_FILE ? [{ filename: LOGO_NAME, path: LOGO_FILE, cid: LOGO_CID }] : [];
 
-const logoSrc = () => (LOGO_FILE ? `cid:${LOGO_CID}` : `${SITE}/putko.png`);
+const logoSrc = () => (LOGO_FILE ? `cid:${LOGO_CID}` : `${SITE}/${LOGO_NAME}`);
 
 /** A green call-to-action button, centred. */
 export function button(href, label) {
@@ -92,9 +95,9 @@ export function callout(innerHtml, tone = "info") {
 }
 
 /** The plain-text sign-off, shared by every message. */
-export const TEXT_SIGNOFF = `S pozdravom,
-Tím podpory Putko
-support@putko.sk
+export const TEXT_SIGNOFF = `Kind regards,
+The UK Stay Hub team
+support@ukstayhub.co.uk
 ${SITE}`;
 
 /**
@@ -121,8 +124,8 @@ export function brandShell({ preheader, title, bodyHtml }) {
              Outlook strip. The green carries the footer instead. -->
         <tr>
           <td align="center" bgcolor="#FFFFFF" style="padding:30px 24px 26px 24px;">
-            <img src="${logoSrc()}" alt="Putko" width="150"
-                 style="display:block;width:150px;max-width:70%;height:auto;border:0;" />
+            <img src="${logoSrc()}" alt="UK Stay Hub" width="230" height="45"
+                 style="display:block;width:230px;max-width:75%;height:auto;border:0;" />
           </td>
         </tr>
 
@@ -140,22 +143,22 @@ export function brandShell({ preheader, title, bodyHtml }) {
         <tr>
           <td align="center" bgcolor="${FOREST}" style="padding:24px 24px;">
             <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;
-                        color:#ffffff;padding-bottom:6px;">Putko.sk</div>
+                        color:#ffffff;padding-bottom:6px;">UK Stay Hub</div>
             <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;padding-bottom:10px;">
-              <a href="${SITE}" style="color:${GOLD};text-decoration:none;">putko.sk</a>
+              <a href="${SITE}" style="color:${GOLD};text-decoration:none;">ukstayhub.co.uk</a>
               <span style="color:#4C6B58;">&nbsp;•&nbsp;</span>
-              <a href="mailto:support@putko.sk" style="color:${GOLD};text-decoration:none;">Podpora</a>
+              <a href="mailto:support@ukstayhub.co.uk" style="color:${GOLD};text-decoration:none;">Support</a>
             </div>
             <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.6;
                         color:#A9C6B4;">
-              Tento e-mail ste dostali, pretože máte účet na Putko.sk.
+              You are receiving this email because you have an account with UK Stay Hub.
             </div>
           </td>
         </tr>
 
       </table>
       <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:${MUTED};
-                  padding-top:14px;">© ${new Date().getFullYear()} Putko.sk</div>
+                  padding-top:14px;">© ${new Date().getFullYear()} UK Stay Hub</div>
     </td>
   </tr>
 </table>`;
@@ -166,7 +169,7 @@ export function brandShell({ preheader, title, bodyHtml }) {
  *
  * Every message was previously hand-rolling its own headings and label/value
  * rows, in a different style each time — and several were coloured #FF5A5F,
- * which is Airbnb's red rather than any Putko colour. These are the pieces that
+ * which is Airbnb's red rather than any brand colour. These are the pieces that
  * kept being rewritten, so a message now composes rather than restyles.
  * ──────────────────────────────────────────────────────────────────────────── */
 
