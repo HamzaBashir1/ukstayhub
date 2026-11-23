@@ -81,7 +81,7 @@ class Listing {
   String propertyType(String lang) {
     final p = raw['propertyType'];
     if (p is Map) {
-      final v = asString(p[lang]).isNotEmpty ? asString(p[lang]) : asString(p['name'] ?? p['sk'] ?? p['en']);
+      final v = asString(p[lang]).isNotEmpty ? asString(p[lang]) : asString(p['name'] ?? p['en'] ?? p['sk']);
       if (v.isNotEmpty) return v;
     }
     return asString(p);
@@ -89,7 +89,7 @@ class Listing {
 
   String rentalForm(String lang) {
     final p = raw['rentalform'];
-    if (p is Map) return asString(p[lang] ?? p['sk']);
+    if (p is Map) return asString(p[lang] ?? p['en'] ?? p['sk']);
     return asString(p);
   }
 
@@ -107,7 +107,7 @@ class Listing {
 
   List<String> amenities(String group, String lang) {
     final g = raw[group];
-    if (g is Map) return asStringList(g[lang] ?? g['sk']);
+    if (g is Map) return asStringList(g[lang] ?? g['en'] ?? g['sk']);
     return asStringList(g);
   }
 
@@ -116,7 +116,7 @@ class Listing {
   String policyValue(String field, String lang) {
     final v = raw[field];
     if (v is Map) {
-      final x = v[lang] ?? v['sk'] ?? v['en'];
+      final x = v[lang] ?? v['en'] ?? v['sk'];
       if (x is List) return asStringList(x).join(', ');
       return asString(x);
     }

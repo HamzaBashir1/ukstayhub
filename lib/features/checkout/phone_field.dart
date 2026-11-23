@@ -14,7 +14,6 @@ import '../../widgets/common.dart';
 const _countries = <(IsoCode, String)>[
   (IsoCode.GB, 'United Kingdom'),
   (IsoCode.IE, 'Ireland'),
-  (IsoCode.SK, 'Slovakia'),
   (IsoCode.CZ, 'Czechia'),
   (IsoCode.PL, 'Poland'),
   (IsoCode.HU, 'Hungary'),

@@ -11,8 +11,8 @@ class AppConfig {
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://backend-9k3q.onrender.com/api',
-    // defaultValue: 'http://localhost:5000/api',
+    // defaultValue: 'https://backend-9k3q.onrender.com/api',
+    defaultValue: 'http://localhost:5000/api',
   );
 
   /// The website origin. Stripe redirects here after checkout
