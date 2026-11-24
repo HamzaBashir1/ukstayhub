@@ -1,7 +1,7 @@
 // utils/stripeInvoices.js
 //
 // Putko's monthly platform-fee invoice to a host, issued as a Stripe Invoice.
-// Replaces utils/superfaktura.js. The fee was already deducted from each booking
+// The fee was already deducted from each booking
 // payout, so the invoice is created, finalized and marked paid out-of-band: it
 // is a tax document, never a payment request.
 import axios from "axios";
@@ -13,6 +13,7 @@ import {
 import { logExternalCall } from "./auditLog.js";
 import { getStripe } from "./stripeHelpers.js";
 import { getTransporter, MAIL_FROM } from "./mailer.js";
+import { DEFAULT_CURRENCY } from "../config/payments.js";
 
 /** `2026-08` from an invoice document. */
 export const yearMonthOf = (invoiceDocument) =>
@@ -81,7 +82,7 @@ async function ensureCustomer(stripe, host, invoiceDocument) {
   return customer;
 }
 
-/** Same shape the job already consumed from SuperFaktúra. */
+/** The identifiers the invoice job stores for a created invoice. */
 export function extractInvoiceMeta(invoice) {
   return {
     id: invoice.id,
@@ -99,7 +100,7 @@ export async function createStripeInvoice({ host, invoiceDocument }) {
   const stripe = getStripe();
   const yearMonth = yearMonthOf(invoiceDocument);
   const bookingCount = invoiceDocument.billedBookings || 0;
-  const currency = (invoiceDocument.currency || "EUR").toLowerCase();
+  const currency = (invoiceDocument.currency || DEFAULT_CURRENCY).toLowerCase();
   const recipient = INVOICE_TEST_EMAIL_OVERRIDE || invoiceDocument.hostSnapshot?.email || host.email || "";
   const emailRequested = Boolean(INVOICE_EMAIL_ENABLED && recipient);
 
@@ -173,12 +174,12 @@ export async function deliverInvoice({ host, invoiceDocument, meta }) {
   if (!to) return { delivered: false, via: null, to: "", error: "no recipient address" };
 
   const subject = redirected
-    ? `[TEST] Invoice from Putko — ${yearMonth} (host: ${hostEmail || "no email"})`
-    : `Invoice from Putko — ${yearMonth}`;
+    ? `[TEST] Invoice from UK Stay Hub — ${yearMonth} (host: ${hostEmail || "no email"})`
+    : `Invoice from UK Stay Hub — ${yearMonth}`;
   const bodyText = redirected
     ? `TEST — redirected by INVOICE_TEST_EMAIL_OVERRIDE. Normally sent to ${hostEmail || "the host"}.\n\nPeriod: ${yearMonth}\nInvoice no.: ${meta.number || "—"}`
-    : `Hello,\n\nattached is the invoice for Putko's intermediary fees for ${yearMonth}. ` +
-      "It is already settled — the fee was deducted from each booking.\n\nKind regards,\nPutko";
+    : `Hello,\n\nattached is the invoice for UK Stay Hub's intermediary fees for ${yearMonth}. ` +
+      "It is already settled — the fee was deducted from each booking.\n\nKind regards,\nUK Stay Hub";
 
   const audit = { invoiceId: String(invoiceDocument._id || ""), externalInvoiceId: meta.id, to, emailRedirected: redirected || undefined };
   try {

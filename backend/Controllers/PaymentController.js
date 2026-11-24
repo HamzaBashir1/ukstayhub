@@ -5,7 +5,6 @@ import Host from "../models/Host.js";
 import ProcessedWebhookEvent from "../models/ProcessedWebhookEvent.js";
 import mongoose from "mongoose";
 import { format, eachDayOfInterval } from 'date-fns';
-import { sendEvent } from "../utils/FacebookCAPI.js";
 import {
   calculateFees,
   buildFeeBreakdown,
@@ -50,6 +49,7 @@ import {
   refreshAllHostStripeAccounts,
   syncListingStatusForHost,
 } from "../utils/hostStripeSync.js";
+import { formatMoney } from "../utils/money.js";
 
 // Moved to utils/hostStripeSync.js so the booking gate can call it without
 // closing an import cycle (listingGating -> PaymentController -> listingGating).
@@ -106,8 +106,7 @@ export const ensureBookingSnapshot = async (reservation) => {
  * backfill, and emitted no audit line at all. Everything now routes here.
  *
  * @param {object} reservation  a Reservation document (mutated and saved)
- * @param {object} context      { language, fbp, fbc, userAgent, ip,
- *                                expiresInHours, reserveDates }
+ * @param {object} context      { language, expiresInHours, reserveDates }
  * @param {boolean} context.reserveDates
  *   Whether to take the dates off the calendar now. True (the default) for a
  *   guest who is about to pay in this browser session. False when a host
@@ -157,9 +156,8 @@ export const buildCheckoutSession = async (reservation, context = {}) => {
     }
   }
 
-  const language = context.language || reservation.language || "sk";
-  const stripeLocaleMap = { en: "en", sk: "sk" };
-  const locale = stripeLocaleMap[language] || "auto";
+  const language = "en";
+  const locale = "en-GB";
 
   const listingId = String(
     reservation.accommodationId?._id || reservation.accommodationId || ""
@@ -241,10 +239,6 @@ export const buildCheckoutSession = async (reservation, context = {}) => {
       hostId,
       listingId,
       language,
-      fbp: context.fbp || "",
-      fbc: context.fbc || "",
-      userAgent: context.userAgent || "",
-      ip: context.ip || "",
     },
     // The Checkout Session's metadata does not propagate to the charge, so
     // refund/dispute webhooks (which carry a charge, not a session) could not
@@ -276,20 +270,14 @@ export const buildCheckoutSession = async (reservation, context = {}) => {
 // Create Stripe Checkout Session (guest pays)
 export const createCheckoutSession = async (req, res) => {
   try {
-    const { reservationId, language, fbp, fbc } = req.body;
+    const { reservationId, language } = req.body;
     if (!reservationId) return res.status(400).json({ error: "reservationId required" });
 
     // Loaded and access-checked by requireReservationAccess where available.
     const reservation = req.reservation || (await Reservation.findById(reservationId));
     if (!reservation) return res.status(404).json({ error: "Reservation not found" });
 
-    const { session } = await buildCheckoutSession(reservation, {
-      language,
-      fbp,
-      fbc,
-      userAgent: req.headers["user-agent"],
-      ip: req.ip || req.connection?.remoteAddress,
-    });
+    const { session } = await buildCheckoutSession(reservation, { language });
 
     res.status(200).json({ url: session.url, sessionId: session.id });
   } catch (err) {
@@ -577,32 +565,6 @@ export const applyPaidCheckoutSession = async (stripe, session, { source = "webh
 
   // Calendar + confirmation emails, guarded internally.
   await finalizeReservation(reservationId);
-
-  // Facebook CAPI - Purchase. Only ever fired by the path that won the update,
-  // so reconciliation cannot double-count a conversion.
-  try {
-    const { fbp, fbc, userAgent, ip } = session.metadata || {};
-    const eventData = {
-      eventName: 'Purchase',
-      productId: reservationId,
-      currency: paymentIntent.currency || 'eur',
-      value: totalAmountCents / 100, // cents to main unit
-      contentName: 'Reservation Payment',
-      eventSourceUrl: '',
-    };
-
-    const userPayload = {
-      email: session.customer_email || session.customer_details?.email,
-      clientIp: ip || '',
-      clientUserAgent: userAgent || '',
-      fbp: fbp,
-      fbc: fbc
-    };
-
-    sendEvent('Purchase', eventData, userPayload);
-  } catch (e) {
-    console.error("FB CAPI Error (Purchase):", e);
-  }
 
   return { applied: true, reservationId };
 };
@@ -1605,7 +1567,7 @@ export const payoutReservation = async (reservation, { force = false, requireBil
           amountCents: amount,
           host: host._id.toString(),
           ...balanceSummary,
-          hint: "The Putko Stripe account settles in a different currency than the bookings. Transfers can only be funded from a balance in the same currency.",
+          hint: "The UK Stay Hub Stripe account settles in a different currency than the bookings. Transfers can only be funded from a balance in the same currency.",
         });
 
         logStripeCall(
@@ -1783,8 +1745,9 @@ export const finalizeReservation = async (reservationId) => {
     // 2. Send Confirmation Email
     const transporter = getTransporter();
 
-    const lang = reservation.language || 'sk'; // Default to Slovak if not set
-    const locale = lang === 'sk' ? 'sk-SK' : 'en-US';
+    // Emails are always sent in English.
+    const lang = 'en';
+    const locale = 'en-GB';
 
     const checkInDateFormatted = new Date(reservation.checkInDate).toLocaleDateString(locale, {
       month: 'long', day: 'numeric', year: 'numeric'
@@ -1836,43 +1799,11 @@ export const finalizeReservation = async (reservationId) => {
         location: "Property Location",
         viewMap: "View Location on Map",
         regards: "Best regards",
-        team: "The Putko Team"
+        team: "The UK Stay Hub Team"
       },
-      sk: {
-        // Guest Email
-        subjectGuest: `Rezervácia potvrdená: ${accommodation.name}${unitSuffix}`,
-        titleGuest: "Vaša rezervácia je potvrdená!",
-        hi: "Ahoj",
-        congrats: `Gratulujeme! Vaša žiadosť o rezerváciu pre <strong>${accommodation.name}</strong> bola schválená a zaplatená.`,
-        // Host Email
-        subjectHost: `Nová rezervácia: ${accommodation.name}${unitSuffix}`,
-        titleHost: "Máte novú rezerváciu!",
-        hostMsg: `Skvelé správy! Vaše ubytovanie <strong>${accommodation.name}</strong> bolo práve zarezervované a zaplatené.`,
-        // Shared
-        stayDetails: "Detaily pobytu",
-        checkIn: "Príchod",
-        checkOut: "Odchod",
-        guests: "Počet hostí",
-        nights: "Nocí",
-        pet: "Zviera",
-        pets: "Počet zvierat",
-        petTypes: { dog: "Pes", cat: "Mačka", other: "Iné" },
-        totalPrice: "Celková cena",
-        unit: "Jednotka",
-        guestDetails: "Detaily hosťa",
-        hostDetails: "Informácie o hostiteľovi",
-        name: "Meno",
-        email: "E-mail",
-        phone: "Telefónne číslo",
-        message: "Správa",
-        location: "Poloha ubytovania",
-        viewMap: "Zobraziť polohu na mape",
-        regards: "S pozdravom",
-        team: "Tím Putko"
-      }
     };
 
-    const text = t[lang] || t.en;
+    const text = t.en;
 
     const hasMessage =
       typeof reservation.message === "string" &&
@@ -1894,8 +1825,8 @@ export const finalizeReservation = async (reservationId) => {
           text.pets,
           String(Math.max(1, Number(reservation.numberOfPets) || 1)),
         ],
-        reservation.extras?.length && [lang === "en" ? "Extras" : "Doplnky", extrasSummary(reservation.extras, lang)],
-        [text.totalPrice, `€${reservation.totalPrice}`],
+        reservation.extras?.length && ["Extras", extrasSummary(reservation.extras, reservation.currency)],
+        [text.totalPrice, formatMoney(reservation.totalPrice, reservation.currency)],
       ]);
 
     // --- EMAIL 1: TO GUEST ---
@@ -1905,7 +1836,7 @@ export const finalizeReservation = async (reservationId) => {
       subject: text.subjectGuest,
       attachments: logoAttachments(),
       html: brandShell({
-        preheader: `${checkInDateFormatted} – ${checkOutDateFormatted} · €${reservation.totalPrice}`,
+        preheader: `${checkInDateFormatted} – ${checkOutDateFormatted} · ${formatMoney(reservation.totalPrice, reservation.currency)}`,
         title: text.titleGuest,
         bodyHtml: `
           ${heroImage(propertyImage, accommodation.name)}
@@ -2088,9 +2019,8 @@ export const sendPaymentEmail = async (req, res) => {
     const amountCents = reservation.totalPriceCents || Math.round((reservation.totalPrice || 0) * 100);
 
     // Map language
-    const language = reservation.language || "sk";
-    const stripeLocaleMap = { en: "en", sk: "sk" };
-    const locale = stripeLocaleMap[language] || "auto";
+    const language = "en";
+    const locale = "en-GB";
 
     // Create new session
     const session = await stripe.checkout.sessions.create({
@@ -2180,26 +2110,12 @@ export const sendPaymentEmail = async (req, res) => {
         totalPrice: "Total Price",
         buttonText: "Pay Now",
         expires: "Link expires in 24 hours.",
-        regards: "Best regards,<br/>The Putko Team"
+        regards: "Best regards,<br/>The UK Stay Hub Team"
       },
-      sk: {
-        subject: `Žiadosť o platbu: ${accommodationName}`,
-        title: "Dokončite svoju platbu",
-        greeting: `Ahoj ${reservation.name},`,
-        message: `Vaša rezervácia v <strong>${accommodationName}</strong> čaká na platbu. Skontrolujte prosím údaje nižšie a pokračujte k platbe pre potvrdenie rezervácie.`,
-        detailsTitle: "Detaily rezervácie",
-        checkIn: "Príchod",
-        checkOut: "Odchod",
-        nights: "Nocí",
-        guests: "Hostia",
-        totalPrice: "Celková cena",
-        buttonText: "Zaplatiť teraz",
-        expires: "Odkaz vyprší do 24 hodín.",
-        regards: "S pozdravom,<br/>Tím Putko"
-      }
     };
 
-    const text = t[language] || t.en;
+    // Emails are always sent in English.
+    const text = t.en;
 
     const mailOptions = {
       from: MAIL_FROM,
@@ -2207,7 +2123,7 @@ export const sendPaymentEmail = async (req, res) => {
       subject: text.subject,
       attachments: logoAttachments(),
       html: brandShell({
-        preheader: `${checkInStr} – ${checkOutStr} · €${reservation.totalPrice}`,
+        preheader: `${checkInStr} – ${checkOutStr} · ${formatMoney(reservation.totalPrice, reservation.currency)}`,
         title: text.title,
         bodyHtml: `
           <p style="margin:0 0 14px 0;">${text.greeting}</p>
@@ -2219,7 +2135,7 @@ export const sendPaymentEmail = async (req, res) => {
               [text.checkOut, checkOutStr],
               [text.nights, String(nights)],
               [text.guests, String(guestCount)],
-              [text.totalPrice, `€${reservation.totalPrice}`],
+              [text.totalPrice, formatMoney(reservation.totalPrice, reservation.currency)],
             ])
           )}
           ${button(session.url, text.buttonText)}

@@ -39,26 +39,10 @@ const messages = {
     accommodationMissing: "Accommodation not found.",
     serverError: "Something went wrong. Please try again.",
   },
-  sk: {
-    notFound: "Účet sa nenašiel.",
-    nameRequired: "Zadajte meno a priezvisko.",
-    phoneInvalid: "Zadajte platné telefónne číslo v medzinárodnom formáte.",
-    genderInvalid: "Vyberte platné pohlavie.",
-    languageInvalid: "Vyberte platný jazyk.",
-    currentPasswordRequired: "Zadajte svoje aktuálne heslo.",
-    passwordTooShort: "Nové heslo musí mať aspoň 8 znakov.",
-    currentPasswordWrong: "Aktuálne heslo je nesprávne.",
-    noPasswordSet: "Tento účet sa prihlasuje cez Google a nemá heslo na zmenu.",
-    passwordChanged: "Heslo bolo úspešne zmenené.",
-    accommodationRequired: "Vyžaduje sa id ubytovania.",
-    accommodationInvalid: "Toto id ubytovania nie je platné.",
-    accommodationMissing: "Ubytovanie sa nenašlo.",
-    serverError: "Niečo sa pokazilo. Skúste to znova.",
-  },
 };
 
 /** The screen sends `lang`; fall back to Slovak like the rest of the app. */
-const t = (req) => messages[req.body?.lang === "en" ? "en" : "sk"];
+const t = () => messages.en;
 
 /**
  * The account as the client may see it.

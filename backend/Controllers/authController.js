@@ -6,10 +6,12 @@ import {
   buildPasswordResetEmail,
   buildPasswordResetSuccessEmail,
 } from "../utils/passwordResetEmail.js";
+import { buildEmailVerifiedEmail } from "../utils/emailVerificationEmail.js";
 import {
-  buildEmailVerificationEmail,
-  buildEmailVerifiedEmail,
-} from "../utils/emailVerificationEmail.js";
+  sendVerificationCode,
+  checkVerificationCode,
+  MAX_ATTEMPTS,
+} from "../utils/emailVerificationCode.js";
 import Host from "../models/Host.js";
 import LoginHistory from "../models/LoginHistory.js";
 
@@ -29,15 +31,9 @@ export const register = async (req, res) => {
       serverError: "Internal server error",
       success: "User successfully created",
     },
-    sk: {
-      userExists: "Používateľ už existuje",
-      serverError: "Interná chyba servera",
-      success: "Používateľ bol úspešne vytvorený",
-    },
   };
 
-  // Determine language (default to English)
-  const t = messages[lang] || messages.sk;
+  const t = messages.en;
 
   try {
     let existingUser = null;
@@ -85,37 +81,18 @@ export const register = async (req, res) => {
 
     await user.save();
 
-    // Generate verification token
-    const verificationToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET_KEY, { expiresIn: '1h' });
+    // Email a 6-digit code; the app asks for it on the next screen. A mail
+    // failure must not fail the registration: the account already exists, and
+    // the code screen has a "Resend code" button.
+    let emailSent = true;
+    try {
+      await sendVerificationCode(email, { force: true });
+    } catch (mailErr) {
+      emailSent = false;
+      console.error("[email-verification] code email not sent:", mailErr.message);
+    }
 
-    // Set up transporter for sending email
-    const transporter = getTransporter();
-
-    // Verification link
-    const verificationUrl = new URL('/login', process.env.CLIENT_SITE_URL || 'https://putko.sk');
-    verificationUrl.searchParams.set('verifyRole', role);
-    verificationUrl.searchParams.set('verifyToken', verificationToken);
-    const verificationLink = verificationUrl.toString();
-
-
-    // Send verification email
-    const { subject, html, text, attachments } = buildEmailVerificationEmail({
-      name,
-      verificationUrl: verificationLink,
-      // Kept in step with the verificationToken expiry above ('1h').
-      expiresInHours: 1,
-    });
-
-    await transporter.sendMail({
-      from: '"UK Stay Hub Support" <support@ukstayhub.co.uk>',
-      to: email,
-      subject,
-      html,
-      text,
-      attachments,
-    });
-
-    res.status(201).json({ success: true, message: t.success });
+    res.status(201).json({ success: true, message: t.success, emailSent });
   } catch (err) {
     res.status(500).json({ success: false, message: `${t.serverError}, ${err.message}`, });
   }
@@ -133,17 +110,9 @@ export const login = async (req, res) => {
       loginSuccess: "Successfully logged in",
       loginFailed: "Failed to login",
     },
-    sk: {
-      userNotFound: "Používateľ nebol nájdený",
-      verifyEmail: "Najprv si overte svoj e-mail",
-      invalidCredentials: "Neplatné poverenia",
-      loginSuccess: "Úspešné prihlásenie",
-      loginFailed: "Nepodarilo sa prihlásiť",
-    },
   };
 
-  // Determine language (default to English)
-  const t = messages[lang] || messages.en;
+  const t = messages.en;
 
   try {
     let user = null;
@@ -197,7 +166,16 @@ export const login = async (req, res) => {
         );
       } else {
         console.log('User not verified');
-        return res.status(400).json({ message: t.verifyEmail });
+        // Send a fresh code (subject to the resend cooldown) so the app can go
+        // straight to the code screen.
+        await sendVerificationCode(user.email).catch((err) =>
+          console.error("[email-verification] send failed:", err.message),
+        );
+        return res.status(400).json({
+          message: t.verifyEmail,
+          code: "emailUnverified",
+          email: user.email,
+        });
       }
     }
 
@@ -420,5 +398,96 @@ export const verifyEmail = async (req, res) => {
       return res.status(400).json({ message: 'Token has expired' });
     }
     res.status(500).json({ message: 'Failed to verify email' });
+  }
+};
+
+const codeMessages = {
+  en: {
+    missing: "Email and code are required",
+    none: "No pending verification for this email. It may already be verified — try signing in.",
+    expired: "This code has expired. Request a new one.",
+    tooManyAttempts: "Too many incorrect attempts. Request a new code.",
+    invalid: "Incorrect code.",
+    verified: "Email verified successfully",
+    sent: "A new code has been sent to your email.",
+    cooldown: "Please wait before requesting another code.",
+    failed: "Failed to verify email",
+  },
+};
+
+/**
+ * POST /auth/verify-email-code { email, code, role?, lang? }
+ *
+ * Marks the address verified and signs the user in, so they don't have to
+ * type their password again straight after registering.
+ */
+export const verifyEmailCode = async (req, res) => {
+  const { email, code, role, lang } = req.body || {};
+  const t = codeMessages.en;
+  if (!email || !code) return res.status(400).json({ message: t.missing });
+
+  try {
+    const result = await checkVerificationCode(email, code);
+    if (!result.ok) {
+      const message =
+        result.reason === "invalid"
+          ? `${t.invalid} (${result.attemptsLeft}/${MAX_ATTEMPTS})`
+          : t[result.reason] || t.failed;
+      return res.status(400).json({ message, code: result.reason, attemptsLeft: result.attemptsLeft });
+    }
+
+    const { accounts } = result;
+    // Same preference as login: the requested role, else host over guest.
+    const user =
+      accounts.find((a) => a.role === role) ||
+      accounts.find((a) => a.role === "host") ||
+      accounts[0];
+
+    const transporter = getTransporter();
+    const { subject, html, text, attachments } = buildEmailVerifiedEmail({ name: user.name });
+    transporter
+      .sendMail({
+        from: '"UK Stay Hub Support" <support@ukstayhub.co.uk>',
+        to: user.email,
+        subject,
+        html,
+        text,
+        attachments,
+      })
+      .catch((err) => console.error("[email-verification] confirmation not sent:", err.message));
+
+    const token = generateToken(user);
+    const { password: _, role: userRole, booking, ...rest } = user._doc;
+    res.status(200).json({
+      status: true,
+      message: t.verified,
+      token,
+      data: { ...rest },
+      role: userRole,
+      mustChangePassword: Boolean(user.mustChangePassword),
+    });
+  } catch (err) {
+    console.error("[email-verification] verify failed:", err);
+    res.status(500).json({ message: t.failed });
+  }
+};
+
+/** POST /auth/resend-verification-code { email, lang? } */
+export const resendVerificationCode = async (req, res) => {
+  const { email, lang } = req.body || {};
+  const t = codeMessages.en;
+  if (!email) return res.status(400).json({ message: t.missing });
+
+  try {
+    const result = await sendVerificationCode(email);
+    if (result.reason === "cooldown") {
+      return res.status(429).json({ message: t.cooldown, code: "cooldown", retryAfter: result.retryAfter });
+    }
+    // "none" answers the same as "sent" so this can't be used to probe which
+    // addresses have pending accounts.
+    res.status(200).json({ message: t.sent });
+  } catch (err) {
+    console.error("[email-verification] resend failed:", err);
+    res.status(500).json({ message: t.failed });
   }
 };

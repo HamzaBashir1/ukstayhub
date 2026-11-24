@@ -14,8 +14,8 @@ export function getStripe() {
 
 /**
  * Structured audit log for every Stripe call.
- * Thin wrapper over the shared logger in `utils/auditLog.js`, so Stripe and
- * SuperFaktúra calls land in one greppable stream and in the same shape.
+ * Thin wrapper over the shared logger in `utils/auditLog.js`, so every external
+ * call lands in one greppable stream and in the same shape.
  */
 export function logStripeCall(operation, context = {}, outcome = "ok", error = null) {
   return logExternalCall("stripe", operation, context, outcome, error);
@@ -178,7 +178,7 @@ export function connectedAccountCreateParams(
   const businessProfile = {
     mcc: CONNECT_MCC,
     product_description:
-      "Short-term accommodation rental booked through the Putko marketplace.",
+      "Short-term accommodation rental booked through the UK Stay Hub marketplace.",
   };
 
   const url = publicSiteUrl();

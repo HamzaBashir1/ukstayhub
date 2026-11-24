@@ -128,7 +128,7 @@ const writeProposal = async (file) => {
       row.words,
       row.reasons.join(", "),
       row.post.title,
-      `https://putko.sk/blog/${row.post.slug}`,
+      `https://ukstayhub.co.uk/blog/${row.post.slug}`,
       String(row.post._id),
     ].map(csvCell).join(",")
   );

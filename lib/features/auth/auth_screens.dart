@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/api_client.dart';
 import '../../core/i18n.dart';
+import '../../core/json.dart';
 import '../../core/theme.dart';
 import '../../data/repo.dart';
 import '../../state/auth.dart';
@@ -26,8 +29,10 @@ Widget _logo(double size) => StayHubMark(size: size);
 /// login/component/login.js, Signup.js and ForgetPassword.js share one layout: a
 /// rounded card with a brand panel (from 1024px) beside the form panel.
 class _AuthCard extends ConsumerWidget {
-  const _AuthCard({required this.title, this.titleWidget, this.subtitle, required this.children});
+  const _AuthCard({required this.title, this.titleWidget, this.subtitle, this.subtitleWidget, this.leading, required this.children});
   final String title;
+  final Widget? leading;
+  final Widget? subtitleWidget;
   final Widget? titleWidget;
   final String? subtitle;
   final List<Widget> children;
@@ -127,9 +132,13 @@ class _AuthCard extends ConsumerWidget {
           SizedBox(
             width: double.infinity,
             child: Column(crossAxisAlignment: lg ? CrossAxisAlignment.start : CrossAxisAlignment.center, children: [
+              if (leading != null) ...[leading!, const SizedBox(height: 20)],
               titleWidget ??
                   Text(title, textAlign: lg ? TextAlign.left : TextAlign.center, style: AppText.fraunces(size: md ? 30 : 24, weight: FontWeight.w600, color: _forest, height: 1.25)),
-              if (subtitle != null) ...[
+              if (subtitleWidget != null) ...[
+                const SizedBox(height: 8),
+                subtitleWidget!,
+              ] else if (subtitle != null) ...[
                 const SizedBox(height: 8),
                 Text(subtitle!, textAlign: lg ? TextAlign.left : TextAlign.center, style: AppText.inter(size: md ? 16 : 14, color: _body, height: 1.5)),
               ],
@@ -328,6 +337,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       } else {
         context.go(auth.isHost ? '/host' : '/');
       }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.code == 'emailUnverified') {
+        // The server has just emailed a fresh code.
+        final email = asString(asMap(e.data)['email'], _email.text.trim());
+        final q = Uri(queryParameters: {'email': email, if (widget.redirect != null) 'redirect': widget.redirect!}).query;
+        context.push('/overenie-emailu?$q');
+      } else {
+        toast(context, errorText(e), error: true);
+      }
     } catch (e) {
       if (mounted) toast(context, errorText(e), error: true);
     } finally {
@@ -393,12 +412,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   String _gender = '';
   String _role = 'guest';
   bool _loading = false;
-  bool _sent = false;
-  Timer? _redirect;
 
   @override
   void dispose() {
-    _redirect?.cancel();
     for (final c in [_name, _last, _email, _password, _confirm]) {
       c.dispose();
     }
@@ -433,7 +449,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     if (!_validate(t)) return;
     setState(() => _loading = true);
     try {
-      await ref.read(authProvider.notifier).register({
+      final res = await ref.read(authProvider.notifier).register({
         'name': _name.text,
         'lastName': _last.text,
         'email': _email.text,
@@ -444,11 +460,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         'lang': t.lang,
       });
       if (!mounted) return;
-      toast(context, t('RegistrationsuccessfulCheckyouremailtoverifyyouraccount', 'Registrácia úspešná. Overte svoj účet v e-maile.'));
-      setState(() => _sent = true);
-      _redirect = Timer(const Duration(seconds: 5), () {
-        if (mounted) context.go('/login');
-      });
+      final q = Uri(queryParameters: {
+        'email': _email.text.trim(),
+        'role': _role,
+        'new': '1',
+        if (res['emailSent'] == false) 'sent': '0',
+      }).query;
+      context.go('/overenie-emailu?$q');
     } catch (e) {
       if (mounted) toast(context, errorText(e), error: true);
     } finally {
@@ -459,34 +477,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(stringsProvider);
-    if (_sent) {
-      // Signup/component/VerifyEmailMessage.js
-      final sm = MediaQuery.sizeOf(context).width >= 640;
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 576),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text(t('Pleasecheckyouremailandverifyyouraccount', 'Skontrolujte e-mail a overte svoj účet'),
-                      textAlign: TextAlign.center, style: AppText.fraunces(size: sm ? 30 : 24, weight: FontWeight.w600, color: _forest, height: 1.25)),
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: () => context.go('/login'),
-                    style: FilledButton.styleFrom(backgroundColor: _green, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                    child: Text(t('ComeBacktoLogin', 'Späť na prihlásenie'), style: AppText.inter(color: Colors.white, size: 16, weight: FontWeight.w500)),
-                  ),
-                ]),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     Widget roleCard(String value, String title, String hint) {
       final on = _role == value;
       return Expanded(
@@ -572,6 +562,312 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           const SizedBox(width: 4),
           _linkText(t('login', 'Prihlásiť sa'), () => context.pushReplacement('/login')),
         ]),
+      ],
+    );
+  }
+}
+
+// ───────────────────────────── Verify email (6-digit code) ─────────────────────────────
+/// Reached after signup (`new=1`), or from login when the account is not
+/// verified yet. The code is typed in here, so nothing depends on the app's URL.
+class VerifyEmailScreen extends ConsumerStatefulWidget {
+  const VerifyEmailScreen({super.key, required this.email, this.role, this.isNew = false, this.emailFailed = false, this.redirect});
+  final String email;
+  final String? role;
+  final bool isNew;
+  final bool emailFailed;
+  final String? redirect;
+  @override
+  ConsumerState<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
+}
+
+class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
+  static const _len = 6;
+  static const _error = Color(0xFFDC2626);
+  final _code = TextEditingController();
+  final _focus = FocusNode();
+  bool _loading = false;
+  bool _resending = false;
+  bool _done = false;
+  String? _errorText;
+  int _cooldown = 0;
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() => setState(() {}));
+    // Signup/login just sent a code, unless the mail failed.
+    if (!widget.emailFailed) _startCooldown(60);
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    _code.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _startCooldown(int seconds) {
+    _tick?.cancel();
+    setState(() => _cooldown = seconds);
+    _tick = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return timer.cancel();
+      setState(() => _cooldown--);
+      if (_cooldown <= 0) timer.cancel();
+    });
+  }
+
+  Future<void> _submit() async {
+    final t = ref.read(stringsProvider);
+    final code = _code.text;
+    if (code.length != _len) {
+      setState(() => _errorText = t.pick('Zadajte celý 6-miestny kód', 'Enter the full 6-digit code'));
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _errorText = null;
+    });
+    try {
+      final mustChange = await ref.read(authProvider.notifier).verifyEmailCode(widget.email, code, role: widget.role, lang: t.lang);
+      if (!mounted) return;
+      setState(() => _done = true);
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
+      final redirect = widget.redirect;
+      if (mustChange) {
+        context.go('/guest?changePassword=1');
+      } else if (redirect != null && redirect.startsWith('/')) {
+        context.go(redirect);
+      } else {
+        context.go(ref.read(authProvider).isHost ? '/host' : '/');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _code.clear();
+      setState(() => _errorText = errorText(e));
+      _focus.requestFocus();
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _resend() async {
+    final t = ref.read(stringsProvider);
+    setState(() {
+      _resending = true;
+      _errorText = null;
+    });
+    try {
+      await authRepo.resendVerificationCode(widget.email, t.lang);
+      if (!mounted) return;
+      toast(context, t.pick('Nový kód sme poslali na ${widget.email}', 'A new code was sent to ${widget.email}'));
+      _code.clear();
+      _focus.requestFocus();
+      _startCooldown(60);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      final retry = asMap(e.data)['retryAfter'];
+      if (e.code == 'cooldown' && retry is num) _startCooldown(retry.toInt());
+      toast(context, errorText(e), error: true);
+    } catch (e) {
+      if (mounted) toast(context, errorText(e), error: true);
+    } finally {
+      if (mounted) setState(() => _resending = false);
+    }
+  }
+
+  Widget _badge() => Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(color: _green.withValues(alpha: 0.1), shape: BoxShape.circle, border: Border.all(color: _green.withValues(alpha: 0.2))),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          child: Icon(_done ? Icons.check_rounded : Icons.mark_email_unread_outlined, key: ValueKey(_done), size: 30, color: _green),
+        ),
+      );
+
+  Widget _banner({required IconData icon, required String text, required Color fg, required Color bg}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12), border: Border.all(color: fg.withValues(alpha: 0.25))),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 18, color: fg),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: AppText.inter(size: 14, color: fg, height: 1.45))),
+        ]),
+      );
+
+  /// Six boxes drawn over one invisible field, so paste and one-time-code
+  /// autofill fill all of them at once.
+  Widget _codeBoxes() {
+    final text = _code.text;
+    final hasError = _errorText != null;
+    return LayoutBuilder(builder: (context, c) {
+      const gap = 10.0;
+      final size = ((c.maxWidth - gap * (_len - 1)) / _len).clamp(40.0, 60.0);
+      return SizedBox(
+        height: size + 4,
+        child: Stack(children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(_len, (i) {
+              final filled = i < text.length;
+              final active = _focus.hasFocus && !_done && (i == text.length || (i == _len - 1 && text.length == _len));
+              final color = _done
+                  ? _green
+                  : hasError
+                      ? _error
+                      : active
+                          ? _green
+                          : filled
+                              ? const Color(0xFF9CA3AF)
+                              : _border;
+              return Padding(
+                padding: EdgeInsets.only(right: i == _len - 1 ? 0 : gap),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: size,
+                  height: size,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _done ? _green.withValues(alpha: 0.06) : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: color, width: active || hasError || _done ? 2 : 1),
+                    boxShadow: active ? [BoxShadow(color: _green.withValues(alpha: 0.18), spreadRadius: 3)] : null,
+                  ),
+                  child: filled
+                      ? Text(text[i], style: AppText.inter(size: size * 0.45, weight: FontWeight.w600, color: const Color(0xFF111827)))
+                      : active
+                          ? Container(width: 2, height: size * 0.4, color: _green)
+                          : null,
+                ),
+              );
+            }),
+          ),
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0,
+              child: TextField(
+                controller: _code,
+                focusNode: _focus,
+                autofocus: true,
+                enabled: !_loading && !_done,
+                keyboardType: TextInputType.number,
+                maxLength: _len,
+                showCursor: false,
+                enableInteractiveSelection: false,
+                autofillHints: const [AutofillHints.oneTimeCode],
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(_len)],
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(counterText: '', border: InputBorder.none),
+                onChanged: (v) {
+                  setState(() => _errorText = null);
+                  if (v.length == _len && !_loading) _submit();
+                },
+                onSubmitted: (_) => _submit(),
+              ),
+            ),
+          ),
+        ]),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(stringsProvider);
+    final lg = MediaQuery.sizeOf(context).width >= 1024;
+    final md = MediaQuery.sizeOf(context).width >= 768;
+    final align = lg ? TextAlign.left : TextAlign.center;
+    final subStyle = AppText.inter(size: md ? 16 : 14, color: _body, height: 1.5);
+
+    return _AuthCard(
+      leading: _badge(),
+      title: _done ? t.pick('E-mail overený', 'Email verified') : t.pick('Skontrolujte svoj e-mail', 'Check your email'),
+      subtitleWidget: Text.rich(
+        TextSpan(children: [
+          TextSpan(text: _done ? t.pick('Prihlasujeme vás…', 'Signing you in…') : '${t.pick('Poslali sme 6-miestny overovací kód na', 'We sent a 6-digit verification code to')} '),
+          if (!_done) TextSpan(text: widget.email, style: subStyle.copyWith(fontWeight: FontWeight.w600, color: _forest)),
+          if (!_done) const TextSpan(text: '.'),
+        ]),
+        textAlign: align,
+        style: subStyle,
+      ),
+      children: [
+        if (widget.isNew && !_done) ...[
+          _banner(
+            icon: Icons.check_circle_outline,
+            text: t.pick('Účet bol vytvorený. Zostáva už len overiť e-mail.', 'Your account has been created. One last step: verify your email.'),
+            fg: _green,
+            bg: _green.withValues(alpha: 0.06),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (widget.emailFailed && !_done) ...[
+          _banner(
+            icon: Icons.error_outline,
+            text: t.pick('E-mail sa nepodarilo odoslať. Skúste „Odoslať znova“.', "We couldn't send the email just now. Tap \"Resend code\"."),
+            fg: const Color(0xFFB45309),
+            bg: const Color(0xFFFFFBEB),
+          ),
+          const SizedBox(height: 16),
+        ],
+        const SizedBox(height: 8),
+        _fieldLabel(t.pick('Overovací kód', 'Verification code')),
+        _codeBoxes(),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 150),
+          child: _errorText == null
+              ? const SizedBox(width: double.infinity, height: 0)
+              : Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Row(children: [
+                    const Icon(Icons.error_outline, size: 16, color: _error),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(_errorText!, style: AppText.inter(size: 13, color: _error))),
+                  ]),
+                ),
+        ),
+        const SizedBox(height: 24),
+        _AuthButton(label: t.pick('Overiť e-mail', 'Verify email'), loading: _loading || _done, onPressed: _submit),
+        const SizedBox(height: 20),
+        Center(
+          child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
+            Text('${t.pick('Nedostali ste kód?', "Didn't get the code?")} ', style: AppText.inter(size: 14, color: _body)),
+            if (_resending)
+              const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: _green))
+            else if (_cooldown > 0)
+              Text(t.pick('Odoslať znova o 0:${_cooldown.toString().padLeft(2, '0')}', 'Resend in 0:${_cooldown.toString().padLeft(2, '0')}'),
+                  style: AppText.inter(size: 14, weight: FontWeight.w500, color: const Color(0xFF9CA3AF)))
+            else
+              _linkText(t.pick('Odoslať znova', 'Resend code'), _resend),
+          ]),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(12), border: Border.all(color: _cardBorder)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.info_outline, size: 18, color: Color(0xFF6B7280)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                t.pick('Kód platí 15 minút. Ak ho nevidíte, pozrite sa do priečinka Spam alebo Promo akcie.',
+                    "The code is valid for 15 minutes. Can't find it? Check your spam or promotions folder."),
+                style: AppText.inter(size: 13, color: const Color(0xFF6B7280), height: 1.45),
+              ),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 24),
+        Center(
+          child: Wrap(spacing: 20, runSpacing: 8, alignment: WrapAlignment.center, children: [
+            _linkText(t.pick('Zmeniť e-mail', 'Use a different email'), () => context.go('/registracia')),
+            _linkText(t('ComeBacktoLogin', 'Späť na prihlásenie'), () => context.go('/login')),
+          ]),
+        ),
       ],
     );
   }

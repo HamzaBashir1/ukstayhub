@@ -281,7 +281,7 @@ export const importHostsFromExcel = async (filePath) => {
     const saveProgressToCSV = () => {
       if (results.length === 0) return;
       const wsData = [
-        ['Property Name', 'Host Email', 'Status', 'Putko URL'], // header row
+        ['Property Name', 'Host Email', 'Status', 'UK Stay Hub URL'], // header row
         ...results.map(r => [r.propertyName, r.email, r.status, r.putkoUrl]),
       ];
       const wb = xlsx.utils.book_new();
@@ -292,7 +292,7 @@ export const importHostsFromExcel = async (filePath) => {
         wch: Math.max(...wsData.map(row => String(row[ci] ?? '').length), 12),
       }));
 
-      xlsx.utils.book_append_sheet(wb, ws, 'Putko URLs');
+      xlsx.utils.book_append_sheet(wb, ws, 'UK Stay Hub URLs');
       xlsx.writeFile(wb, outputPath, { bookType: 'csv' });
     };
 
@@ -444,7 +444,7 @@ export const importHostsFromExcel = async (filePath) => {
           propertyName,
           email,
           status: 'skipped (already exists)',
-          putkoUrl: `https://putko.sk/listings/${existingSlug}`,
+          putkoUrl: `https://ukstayhub.co.uk/listings/${existingSlug}`,
         });
         saveProgressToCSV();
         continue;
@@ -630,7 +630,7 @@ export const importHostsFromExcel = async (filePath) => {
         propertyName,
         email,
         status: parsedUnits.length ? `created (${parsedUnits.length} units)` : 'created',
-        putkoUrl: `https://putko.sk/listings/${slug}`,
+        putkoUrl: `https://ukstayhub.co.uk/listings/${slug}`,
       });
       saveProgressToCSV();
 
@@ -718,29 +718,29 @@ export const importHostsFromExcel = async (filePath) => {
       const listingMailOptions = {
         from: '"UK Stay Hub Support" <support@ukstayhub.co.uk>',
         to: email,
-        subject: 'Váš návrh inzerátu je pripravený na Putko',
+        subject: 'Your UK Stay Hub listing draft is ready',
         attachments: logoFiles,
         html: brandShell({
-          preheader: `Návrh inzerátu ${name} je pripravený na kontrolu.`,
-          title: "Váš návrh inzerátu je pripravený",
+          preheader: `The draft listing for ${name} is ready for you to review.`,
+          title: "Your listing draft is ready",
           bodyHtml: `
 
-              <p style="font-size:16px; margin:0 0 12px 0;">Vážený pán ${name},</p>
+              <p style="font-size:16px; margin:0 0 12px 0;">Dear ${name},</p>
               <p style="font-size:16px; margin:0 0 12px 0;">
-                Bolo nám potešením sa s Vami porozprávať. Vytvorili sme predbežný návrh Vášho inzerátu na ubytovanie na Putko – slovenskej platforme, ktorá spája hostí priamo s ubytovateľmi bez provízií.
+                It was a pleasure speaking with you. We've created a draft of your accommodation listing on UK Stay Hub — the platform that connects guests directly with hosts, with no commission.
               </p>
 
               <p style="font-size:16px; margin:0 0 12px 0;">
-                Pred zverejnením inzerátu prosím skontrolujte niekoľko detailov:
+                Before your listing goes live, please check a few details:
               </p>
               <ul style="font-size:16px; margin:0 0 12px 20px;">
-                <li>Synchronizujte kalendár, aby ste predišli dvojitým rezerváciám</li>
-                <li>Skontrolujte, či sú ceny správne nastavené</li>
-                <li>Potvrďte vybavenie a ďalšie údaje</li>
+                <li>Sync your calendar to avoid double bookings</li>
+                <li>Check that your prices are set correctly</li>
+                <li>Confirm the amenities and other details</li>
               </ul>
 
               <p style="font-size:16px; margin:12px 0;">
-                Prezrite si a upravte inzerát tu:
+                Review and edit your listing here:
               </p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
@@ -748,10 +748,10 @@ export const importHostsFromExcel = async (filePath) => {
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                       <tr>
                         <td align="center" bgcolor="#238869" style="border-radius:8px;">
-                          <a href="https://putko.sk/listings/${slug}"
+                          <a href="https://ukstayhub.co.uk/listings/${slug}"
                              style="display:inline-block; padding:14px 34px; font-family:Arial,Helvetica,sans-serif;
                                     font-size:16px; font-weight:bold; color:#ffffff; text-decoration:none;
-                                    border-radius:8px;">Skontrolovať môj inzerát</a>
+                                    border-radius:8px;">Review my listing</a>
                         </td>
                       </tr>
                     </table>
@@ -763,23 +763,23 @@ export const importHostsFromExcel = async (filePath) => {
                 <img src="${imagesToUpload?.split(",")[0]?.trim() || ""}" alt="Accommodation Image" style="width:100%; max-width:550px; border-radius:12px; box-shadow:0 8px 16px rgba(0,0,0,0.1);">
               </div>
 
-              <p style="font-size:16px; margin:12px 0;">Vaše prihlasovacie údaje sú:</p>
+              <p style="font-size:16px; margin:12px 0;">Your sign-in details are:</p>
               <ul style="font-size:16px; margin:0 0 12px 20px;">
-                <li><strong>E-mail:</strong> ${email}</li>
-                <li><strong>Heslo:</strong> Putko2026</li>
+                <li><strong>Email:</strong> ${email}</li>
+                <li><strong>Password:</strong> Putko2026</li>
               </ul>
 
-              <!-- ── Nastavenie platieb ──────────────────────────────────── -->
+              <!-- ── Payment setup ──────────────────────────────────── -->
               <hr style="border:0; border-top:1px solid #E4E9E5; margin:28px 0 24px 0;" />
 
               <p style="font-size:16px; line-height:1.6; margin:0 0 20px 0;">
-                Aby ste mohli bez problémov a bez zbytočných oneskorení prijímať platby za svoje
-                budúce rezervácie, je potrebné pripojiť váš bankový účet k účtu na Putko.sk
-                a dokončiť proces nastavenia platieb.
+                To receive payments for your future bookings smoothly and without delays, please
+                connect your bank account to your UK Stay Hub account and complete the payment
+                setup.
               </p>
 
               <h2 style="font-size:19px; line-height:1.3; color:#1E3E2B; margin:0 0 16px 0;">
-                Postup nastavenia platieb
+                How to set up payments
               </h2>
 
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
@@ -796,10 +796,10 @@ export const importHostsFromExcel = async (filePath) => {
                     </table>
                   </td>
                   <td valign="top" style="padding:0 0 16px 0; font-size:15px; line-height:1.55;">
-                    <strong style="color:#1E3E2B;">Prihláste sa do svojho účtu Putko</strong><br />
+                    <strong style="color:#1E3E2B;">Sign in to your UK Stay Hub account</strong><br />
                     <span style="color:#6B7280; font-size:14px;">
-                      Navštívte <a href="https://putko.sk/login" style="color:#238869; text-decoration:underline;">putko.sk/login</a>
-                      a prihláste sa pomocou svojich prihlasovacích údajov.
+                      Go to <a href="https://ukstayhub.co.uk/login" style="color:#238869; text-decoration:underline;">ukstayhub.co.uk/login</a>
+                      and sign in with the details above.
                     </span>
                   </td>
                 </tr>
@@ -815,9 +815,9 @@ export const importHostsFromExcel = async (filePath) => {
                     </table>
                   </td>
                   <td valign="top" style="padding:0 0 16px 0; font-size:15px; line-height:1.55;">
-                    <strong style="color:#1E3E2B;">Prejdite do svojho hostiteľského účtu</strong><br />
+                    <strong style="color:#1E3E2B;">Go to your host account</strong><br />
                     <span style="color:#6B7280; font-size:14px;">
-                      Po prihlásení navštívte <a href="https://putko.sk/host/account" style="color:#238869; text-decoration:underline;">svoj účet hostiteľa</a>.
+                      Once signed in, open <a href="https://ukstayhub.co.uk/host/account" style="color:#238869; text-decoration:underline;">your host account</a>.
                     </span>
                   </td>
                 </tr>
@@ -833,9 +833,9 @@ export const importHostsFromExcel = async (filePath) => {
                     </table>
                   </td>
                   <td valign="top" style="padding:0 0 16px 0; font-size:15px; line-height:1.55;">
-                    <strong style="color:#1E3E2B;">Otvorte sekciu Platby</strong><br />
+                    <strong style="color:#1E3E2B;">Open the Payments section</strong><br />
                     <span style="color:#6B7280; font-size:14px;">
-                      V hostiteľskom účte prejdite do sekcie <strong>Účty a príjmy</strong>.
+                      In your host account, go to <strong>Accounts and earnings</strong>.
                     </span>
                   </td>
                 </tr>
@@ -851,10 +851,10 @@ export const importHostsFromExcel = async (filePath) => {
                     </table>
                   </td>
                   <td valign="top" style="padding:0 0 16px 0; font-size:15px; line-height:1.55;">
-                    <strong style="color:#1E3E2B;">Pridajte svoj bankový účet</strong><br />
+                    <strong style="color:#1E3E2B;">Add your bank account</strong><br />
                     <span style="color:#6B7280; font-size:14px;">
-                      Zadajte údaje svojho bankového účtu a dôkladne skontrolujte, či sú všetky
-                      údaje správne.
+                      Enter your bank account details and double-check that everything is
+                      correct.
                     </span>
                   </td>
                 </tr>
@@ -870,10 +870,9 @@ export const importHostsFromExcel = async (filePath) => {
                     </table>
                   </td>
                   <td valign="top" style="padding:0 0 4px 0; font-size:15px; line-height:1.55;">
-                    <strong style="color:#1E3E2B;">Dokončite proces onboardingu</strong><br />
+                    <strong style="color:#1E3E2B;">Complete onboarding</strong><br />
                     <span style="color:#6B7280; font-size:14px;">
-                      Postupujte podľa pokynov zobrazených v sekcii Platby a dokončite celý proces
-                      nastavenia.
+                      Follow the instructions in the Payments section to finish the setup.
                     </span>
                   </td>
                 </tr>
@@ -885,10 +884,10 @@ export const importHostsFromExcel = async (filePath) => {
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                       <tr>
                         <td align="center" bgcolor="#238869" style="border-radius:8px;">
-                          <a href="https://putko.sk/host/payouts"
+                          <a href="https://ukstayhub.co.uk/host/payouts"
                              style="display:inline-block; padding:14px 34px; font-family:Arial,Helvetica,sans-serif;
                                     font-size:16px; font-weight:bold; color:#ffffff; text-decoration:none;
-                                    border-radius:8px;">Nastaviť platby</a>
+                                    border-radius:8px;">Set up payments</a>
                         </td>
                       </tr>
                     </table>
@@ -897,43 +896,42 @@ export const importHostsFromExcel = async (filePath) => {
               </table>
 
               <p style="font-size:16px; line-height:1.6; margin:0 0 24px 0;">
-                Po úspešnom dokončení bude váš účet pripravený na prijímanie platieb z budúcich
-                rezervácií. Odporúčame vám dokončiť nastavenie čo najskôr, aby mohli byť vaše
-                budúce rezervácie a výplaty spracované plynulo a bez zbytočných oneskorení.
+                Once that's done, your account will be ready to receive payments for future
+                bookings. We recommend finishing the setup as soon as possible so your bookings
+                and payouts are processed smoothly and without delays.
               </p>
 
-              <!-- ── O platforme ─────────────────────────────────────────── -->
+              <!-- ── About the platform ─────────────────────────────────────────── -->
               <hr style="border:0; border-top:1px solid #E4E9E5; margin:0 0 24px 0;" />
 
               <h2 style="font-size:19px; line-height:1.3; color:#1E3E2B; margin:0 0 14px 0;">
-                Vaše ubytovanie, vaše podnikanie, naša platforma
+                Your property, your business, our platform
               </h2>
 
               <p style="font-size:16px; line-height:1.6; margin:0 0 14px 0;">
-                V Putko budujeme platformu zameranú na slovenský trh krátkodobých prenájmov, ktorá
-                spája kvalitných poskytovateľov ubytovania s hosťami hľadajúcimi príjemné pobyty
-                po celom Slovensku.
+                At UK Stay Hub we're building a short-term rental platform that connects quality
+                hosts with guests looking for great places to stay.
               </p>
 
               <p style="font-size:16px; line-height:1.6; margin:0 0 14px 0;">
-                Na platforme neustále pracujeme, rozširujeme jej dosah a vytvárame nové
-                príležitosti pre našich hostiteľov.
+                We're constantly improving the platform, growing its reach and creating new
+                opportunities for our hosts.
               </p>
 
               <p style="font-size:16px; line-height:1.6; margin:0 0 20px 0;">
-                Sme radi, že ste sa k nám pridali, a tešíme sa na spoločný rast. Váš úspech ako
-                hostiteľa je dôležitou súčasťou úspechu Putko.
+                We're glad you've joined us and look forward to growing together. Your success as
+                a host is an important part of UK Stay Hub's success.
               </p>
 
               <p style="font-size:16px; line-height:1.6; margin:0 0 14px 0;">
-                Ak potrebujete pomoc s nastavením platieb alebo máte akékoľvek otázky, kontaktujte
-                náš tím podpory na
+                If you need help setting up payments or have any questions, contact our support
+                team at
                 <a href="mailto:support@ukstayhub.co.uk" style="color:#238869; text-decoration:underline;">support@ukstayhub.co.uk</a>.
-                Radi vám pomôžeme.
+                We're happy to help.
               </p>
 
               <p style="font-size:16px; line-height:1.6; margin:0 0 24px 0;">
-                Ďakujeme, že ste si vybrali Putko a že ste súčasťou našej cesty.
+                Thank you for choosing UK Stay Hub and for being part of our journey.
               </p>
 
 `,
@@ -975,7 +973,7 @@ export const importHostsFromExcel = async (filePath) => {
     } else {
       console.warn("⚠️ Excel file not found during cleanup:", filePath);
     }
-    console.log(`📄 Putko URL results saved sequentially to: ${outputPath}`);
+    console.log(`📄 UK Stay Hub URL results saved sequentially to: ${outputPath}`);
   } catch (err) {
     console.error("❌ Error importing hosts and accommodations:", err.message);
   }

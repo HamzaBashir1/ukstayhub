@@ -11,6 +11,8 @@
 // through here. Duplicating the fallback rule is how a booking ends up paying
 // the wrong account.
 
+import { DEFAULT_CURRENCY } from "../config/payments.js";
+
 /**
  * The host's accounts as a list, including the legacy single account.
  *
@@ -347,7 +349,7 @@ export function accountRemovalBlockers({
         accommodationId: String(r.accommodationId?._id || r.accommodationId),
         checkInDate: r.checkInDate || null,
         amountCents: r.hostAmountCents || 0,
-        currency: r.currency || "eur",
+        currency: r.currency || DEFAULT_CURRENCY,
       })),
     });
   }

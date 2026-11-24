@@ -108,6 +108,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/login', builder: (_, s) => LoginScreen(redirect: s.uri.queryParameters['redirect'])),
       GoRoute(path: '/registracia', builder: (_, __) => const SignupScreen()),
+      GoRoute(
+        path: '/overenie-emailu',
+        builder: (_, s) {
+          final q = s.uri.queryParameters;
+          return VerifyEmailScreen(
+            email: q['email'] ?? '',
+            role: q['role'],
+            isNew: q['new'] == '1',
+            emailFailed: q['sent'] == '0',
+            redirect: q['redirect'],
+          );
+        },
+      ),
       GoRoute(path: '/Signup', redirect: (_, __) => '/registracia'),
       GoRoute(path: '/zabudnute-heslo', builder: (_, __) => const ForgotPasswordScreen()),
       GoRoute(

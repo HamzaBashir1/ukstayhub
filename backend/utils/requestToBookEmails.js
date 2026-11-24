@@ -23,16 +23,13 @@ import {
 } from "./emailLayout.js";
 import { onboardingStepsHtml } from "./hostOnboardingSteps.js";
 import { extrasSummary } from "./pricing.js";
+import { formatCents } from "./money.js";
 
-const money = (cents, currency = "eur") =>
-  new Intl.NumberFormat("sk-SK", {
-    style: "currency",
-    currency: (currency || "eur").toUpperCase(),
-  }).format((Number(cents) || 0) / 100);
+const money = (cents, currency) => formatCents(cents, currency);
 
 const day = (date) =>
   date
-    ? new Date(date).toLocaleDateString("sk-SK", {
+    ? new Date(date).toLocaleDateString("en-GB", {
         day: "numeric",
         month: "long",
         year: "numeric",
@@ -40,23 +37,23 @@ const day = (date) =>
       })
     : "";
 
-const PET_TYPES_SK = { dog: "Pes", cat: "Mačka", other: "Iné" };
+const PET_TYPES = { dog: "Dog", cat: "Cat", other: "Other" };
 
 /** The stay, as a small table. Used in every message so the facts never drift. */
 const stayTable = (reservation, listingName) => {
   const rows = [
-    [listingName ? "Ubytovanie" : null, listingName],
+    [listingName ? "Accommodation" : null, listingName],
     // The unit asked for, on a listing split into units.
-    [reservation.unitName ? "Jednotka" : null, reservation.unitName],
-    ["Termín", `${day(reservation.checkInDate)} – ${day(reservation.checkOutDate)}`],
-    ["Počet hostí", String(reservation.numberOfPersons || 1)],
-    [reservation.withPet ? "Zviera" : null, PET_TYPES_SK[reservation.petType] || reservation.petType || "—"],
+    [reservation.unitName ? "Unit" : null, reservation.unitName],
+    ["Dates", `${day(reservation.checkInDate)} – ${day(reservation.checkOutDate)}`],
+    ["Guests", String(reservation.numberOfPersons || 1)],
+    [reservation.withPet ? "Pet" : null, PET_TYPES[reservation.petType] || reservation.petType || "—"],
     [
-      reservation.withPet ? "Počet zvierat" : null,
+      reservation.withPet ? "Number of pets" : null,
       String(Math.max(1, Number(reservation.numberOfPets) || 1)),
     ],
-    [reservation.extras?.length ? "Doplnky" : null, extrasSummary(reservation.extras, "sk")],
-    ["Suma", money(reservation.totalPriceCents, reservation.currency)],
+    [reservation.extras?.length ? "Extras" : null, extrasSummary(reservation.extras, reservation.currency)],
+    ["Total", money(reservation.totalPriceCents, reservation.currency)],
   ].filter(([label]) => label);
 
   return `
@@ -133,15 +130,15 @@ export const sendHostBookingRequestEmail = async ({
       ${callout(
         `<strong>${esc(
           onboarding?.headline ||
-            "Na prijatie žiadosti potrebujete pripojiť výplatný účet."
+            "To accept this request, connect a payout account."
         )}</strong><br />
-         Po dokončení žiadosť prijmete jedným kliknutím a hosťovi automaticky
-         odošleme platobný odkaz.`,
+         Once that's done, accept the request in one click and we'll send the guest
+         a payment link automatically.`,
         "warning"
       )}
       ${
         onboarding?.steps?.length
-          ? section("Ako to dokončíte", onboardingStepsHtml(onboarding.steps, {
+          ? section("How to finish", onboardingStepsHtml(onboarding.steps, {
               ink: INK,
               muted: MUTED,
               teal: TEAL,
@@ -149,38 +146,38 @@ export const sendHostBookingRequestEmail = async ({
             }))
           : ""
       }
-      ${button(payoutsLink, onboarding?.ctaLabel || "Pripojiť účet a prijať žiadosť")}
+      ${button(payoutsLink, onboarding?.ctaLabel || "Connect account and accept request")}
       <p style="margin:0 0 14px 0;color:${MUTED};font-size:13px;">
-        Žiadosť vám medzitým nikam nezmizne — nájdete ju v profile v sekcii
-        <strong>Rezervácie</strong>.
+        The request won't go anywhere in the meantime — you'll find it in your profile under
+        <strong>Reservations</strong>.
       </p>`
     : `
       ${callout(
-        `Žiadosť prijmete alebo odmietnete v sekcii <strong>Rezervácie</strong>.
-         Po prijatí hosťovi odošleme platobný odkaz s platnosťou 24 hodín —
-         rezervácia je potvrdená až po zaplatení.`
+        `Accept or decline the request under <strong>Reservations</strong>.
+         Once you accept, we'll send the guest a payment link valid for 24 hours —
+         the booking is confirmed only after payment.`
       )}
-      ${button(link, "Zobraziť žiadosť")}`;
+      ${button(link, "View request")}`;
 
   const bodyHtml = `
-    <p style="margin:0 0 14px 0;">Dobrý deň${hostName ? ` ${esc(hostName)}` : ""},</p>
+    <p style="margin:0 0 14px 0;">Hi${hostName ? ` ${esc(hostName)}` : ""},</p>
     <p style="margin:0 0 16px 0;">
-      Máte novú žiadosť o rezerváciu na <strong>${amount}</strong>.
+      You have a new booking request for <strong>${amount}</strong>.
     </p>
     ${stayTable(reservation, listingName)}
     ${onboardingBlock}
     <p style="margin:0 0 8px 0;color:${MUTED};font-size:14px;">
-      Hosť zatiaľ nič nezaplatil a termín nie je blokovaný. Ak neodpoviete do 48 hodín,
-      žiadosť automaticky vyprší.
+      The guest hasn't paid anything yet and the dates aren't blocked. If you don't reply
+      within 48 hours, the request expires automatically.
     </p>`;
 
   return send(
     {
       to,
-      subject: `Máte žiadosť o rezerváciu — ${dates}, ${amount}`,
+      subject: `New booking request — ${dates}, ${amount}`,
       html: brandShell({
-        preheader: `${dates} · ${reservation.numberOfPersons} hostia · ${amount}`,
-        title: "Nová žiadosť o rezerváciu",
+        preheader: `${dates} · ${reservation.numberOfPersons} guest${Number(reservation.numberOfPersons) === 1 ? "" : "s"} · ${amount}`,
+        title: "New booking request",
         bodyHtml,
       }),
     },
@@ -191,26 +188,26 @@ export const sendHostBookingRequestEmail = async ({
 /** To the GUEST: the request is in, nothing has been charged. */
 export const sendGuestRequestReceivedEmail = async ({ to, reservation, listingName }) => {
   const bodyHtml = `
-    <p style="margin:0 0 14px 0;">Dobrý deň${reservation.name ? ` ${esc(reservation.name)}` : ""},</p>
+    <p style="margin:0 0 14px 0;">Hi${reservation.name ? ` ${esc(reservation.name)}` : ""},</p>
     <p style="margin:0 0 16px 0;">
-      Vašu žiadosť o rezerváciu sme odoslali hostiteľovi. <strong>Zatiaľ ste nič nezaplatili.</strong>
+      We've sent your booking request to the host. <strong>You haven't been charged anything yet.</strong>
     </p>
     ${stayTable(reservation, listingName)}
     ${callout(
-      `Hostiteľ má 48 hodín na odpoveď. Keď žiadosť prijme, pošleme vám platobný odkaz
-       a rezervácia bude potvrdená až po zaplatení. Termín zatiaľ nie je blokovaný.`
+      `The host has 48 hours to reply. If they accept, we'll send you a payment link,
+       and the booking is confirmed once you pay. The dates aren't held until then.`
     )}
     <p style="margin:0;color:${MUTED};font-size:14px;">
-      Číslo žiadosti: ${esc(String(reservation._id))}
+      Request number: ${esc(String(reservation._id))}
     </p>`;
 
   return send(
     {
       to,
-      subject: "Vaša žiadosť o rezerváciu bola odoslaná",
+      subject: "Your booking request has been sent",
       html: brandShell({
-        preheader: "Zatiaľ ste nič nezaplatili — čakáme na odpoveď hostiteľa.",
-        title: "Žiadosť odoslaná",
+        preheader: "You haven't been charged — we're waiting for the host to reply.",
+        title: "Request sent",
         bodyHtml,
       }),
     },
@@ -227,29 +224,29 @@ export const sendGuestPaymentLinkEmail = async ({
   expiresAt,
 }) => {
   const bodyHtml = `
-    <p style="margin:0 0 14px 0;">Dobrý deň${reservation.name ? ` ${esc(reservation.name)}` : ""},</p>
+    <p style="margin:0 0 14px 0;">Hi${reservation.name ? ` ${esc(reservation.name)}` : ""},</p>
     <p style="margin:0 0 16px 0;">
-      Dobrá správa — hostiteľ vašu žiadosť <strong>prijal</strong>. Rezerváciu potvrdíte zaplatením.
+      Good news — the host has <strong>accepted</strong> your request. Pay now to confirm your booking.
     </p>
     ${stayTable(reservation, listingName)}
-    ${button(paymentUrl, "Zaplatiť a potvrdiť rezerváciu")}
+    ${button(paymentUrl, "Pay and confirm booking")}
     ${callout(
-      `Odkaz je platný do <strong>${esc(
-        new Date(expiresAt).toLocaleString("sk-SK")
-      )}</strong>. Termín je pre vás držaný do zaplatenia — po vypršaní odkazu sa uvoľní.`,
+      `This link is valid until <strong>${esc(
+        new Date(expiresAt).toLocaleString("en-GB", { timeZone: "Europe/London", dateStyle: "long", timeStyle: "short" })
+      )}</strong>. The dates are held for you until then — after that they're released.`,
       "warning"
     )}
     <p style="margin:0;color:${MUTED};font-size:13px;word-break:break-all;">
-      Ak tlačidlo nefunguje, otvorte tento odkaz:<br />${esc(paymentUrl)}
+      If the button doesn't work, open this link:<br />${esc(paymentUrl)}
     </p>`;
 
   return send(
     {
       to,
-      subject: "Vaša rezervácia bola prijatá — zostáva zaplatiť",
+      subject: "Your booking request was accepted — complete payment",
       html: brandShell({
-        preheader: "Hostiteľ prijal vašu žiadosť. Platobný odkaz je platný 24 hodín.",
-        title: "Žiadosť prijatá",
+        preheader: "The host accepted your request. The payment link is valid for 24 hours.",
+        title: "Request accepted",
         bodyHtml,
       }),
     },
@@ -274,31 +271,31 @@ export const sendGuestRequestClosedEmail = async ({
   const searchLink = `${SITE}/listings`;
 
   const bodyHtml = `
-    <p style="margin:0 0 14px 0;">Dobrý deň${reservation.name ? ` ${esc(reservation.name)}` : ""},</p>
+    <p style="margin:0 0 14px 0;">Hi${reservation.name ? ` ${esc(reservation.name)}` : ""},</p>
     <p style="margin:0 0 16px 0;">
       ${
         expired
-          ? "Hostiteľ na vašu žiadosť o rezerváciu neodpovedal, preto jej platnosť vypršala."
-          : "Hostiteľ vašu žiadosť o rezerváciu, žiaľ, nemohol prijať."
+          ? "The host didn't reply to your booking request, so it has expired."
+          : "Unfortunately, the host couldn't accept your booking request."
       }
-      <strong>Nič vám nebolo účtované.</strong>
+      <strong>You haven't been charged.</strong>
     </p>
     ${stayTable(reservation, listingName)}
     ${hostMessage ? callout(`<em>${esc(hostMessage)}</em>`) : ""}
     <p style="margin:16px 0 0 0;">
-      Na rovnaký termín máme ďalšie voľné ubytovania — pozrite si ich a rezervujte okamžite.
+      There are other places available for the same dates — take a look and book instantly.
     </p>
-    ${button(searchLink, "Zobraziť voľné ubytovania")}`;
+    ${button(searchLink, "See available stays")}`;
 
   return send(
     {
       to,
       subject: expired
-        ? "Platnosť vašej žiadosti o rezerváciu vypršala"
-        : "Vaša žiadosť o rezerváciu bola zamietnutá",
+        ? "Your booking request has expired"
+        : "Your booking request was declined",
       html: brandShell({
-        preheader: "Nič vám nebolo účtované.",
-        title: expired ? "Žiadosť vypršala" : "Žiadosť zamietnutá",
+        preheader: "You haven't been charged.",
+        title: expired ? "Request expired" : "Request declined",
         bodyHtml,
       }),
     },

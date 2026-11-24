@@ -13,7 +13,7 @@ const UserSchema = new mongoose.Schema(
     language: {
       type: String,
       enum: ["Slovak", "English"],
-      default: "Slovak",
+      default: "English",
     },
     role: {
       type: String,
@@ -56,6 +56,11 @@ const UserSchema = new mongoose.Schema(
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
   isVerified: { type: Boolean, default: false },
+  // Email verification code (hashed). See utils/emailVerificationCode.js.
+  emailVerificationCode: { type: String, select: false },
+  emailVerificationExpires: { type: Date, select: false },
+  emailVerificationAttempts: { type: Number, default: 0, select: false },
+  emailVerificationSentAt: { type: Date, select: false },
   // Set on accounts created automatically for a guest who booked without
   // signing up: their password was emailed to them, so it is a one-time key to
   // get in and choose a real one, not a credential to keep.

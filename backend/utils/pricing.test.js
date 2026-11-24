@@ -29,7 +29,7 @@ test("an extra the listing does not offer, or a Slovak name, is handled from the
 
 test("email line", () => {
   const { lines } = paidExtrasQuote(listing, ["Hot Tub", "Sauna"], 4);
-  assert.equal(extrasSummary(lines, "en"), "Hot Tub €30/night · €120, Sauna €50/stay");
-  assert.equal(extrasSummary(lines, "sk"), "Vírivka €30/noc · €120, Sauna €50/pobyt");
+  assert.equal(extrasSummary(lines, "gbp"), "Hot Tub £30/night · £120, Sauna £50/stay");
+  assert.equal(extrasSummary(lines, "eur"), "Hot Tub €30/night · €120, Sauna €50/stay");
   assert.equal(extrasSummary(undefined), "");
 });

@@ -14,15 +14,15 @@ import Message from "../models/messageModel.js";
 import { getTransporter, MAIL_FROM } from "../utils/mailer.js";
 import { brandShell, callout, esc, logoAttachments } from "../utils/emailLayout.js";
 import { toBusinessDateString, toCalendarDateString } from "../utils/timezone.js";
+import { formatCents } from "../utils/money.js";
 
-const money = (cents, currency = "EUR") =>
-  `${(Math.round(cents || 0) / 100).toFixed(2)} ${currency.toUpperCase()}`;
+const money = (cents, currency) => formatCents(cents, currency);
 
 /** Stable, human-quotable receipt reference. Not an invoice number. */
 export const receiptNumber = (reservation) =>
   `PUTKO-R-${String(reservation._id).slice(-8).toUpperCase()}`;
 
-function buildReceiptPdf(reservation, accommodation, lang = "sk") {
+function buildReceiptPdf(reservation, accommodation) {
   const t = {
     en: {
       title: "Payment Receipt",
@@ -41,28 +41,9 @@ function buildReceiptPdf(reservation, accommodation, lang = "sk") {
       card: "Card (via Stripe)",
       status: "Status",
       statusPaid: "Paid",
-      footer: "Putko facilitates the booking and payment. The rental agreement is between the guest and the host.",
+      footer: "UK Stay Hub facilitates the booking and payment. The rental agreement is between the guest and the host.",
     },
-    sk: {
-      title: "Potvrdenie o platbe",
-      notInvoice:
-        "Toto je potvrdenie o platbe, nie daňový doklad. O faktúru za ubytovacie služby požiadajte svojho hostiteľa.",
-      receiptNo: "Číslo potvrdenia",
-      issued: "Vystavené",
-      guest: "Hosť",
-      property: "Ubytovanie",
-      checkIn: "Príchod",
-      checkOut: "Odchod",
-      nights: "Nocí",
-      guests: "Hostia",
-      paid: "Zaplatená suma",
-      method: "Spôsob platby",
-      card: "Karta (cez Stripe)",
-      status: "Stav",
-      statusPaid: "Zaplatené",
-      footer: "Putko sprostredkúva rezerváciu a platbu. Nájomná zmluva je medzi hosťom a hostiteľom.",
-    },
-  }[lang === "en" ? "en" : "sk"];
+  }.en;
 
   const doc = new PDFDocument({ size: "A4", margin: 50 });
 
@@ -74,7 +55,7 @@ function buildReceiptPdf(reservation, accommodation, lang = "sk") {
     )
   );
 
-  doc.fontSize(22).fillColor("#2E7D32").text("Putko", { align: "left" });
+  doc.fontSize(22).fillColor("#2E7D32").text("UK Stay Hub", { align: "left" });
   doc.moveDown(0.2);
   doc.fontSize(18).fillColor("#222").text(t.title);
   doc.moveDown(0.5);
@@ -114,7 +95,7 @@ function buildReceiptPdf(reservation, accommodation, lang = "sk") {
   doc
     .fontSize(14)
     .fillColor("#2E7D32")
-    .text(`${t.paid}: ${money(reservation.grossCents(), reservation.currency || "EUR")}`, {
+    .text(`${t.paid}: ${money(reservation.grossCents(), reservation.currency)}`, {
       align: "right",
     });
 
@@ -140,8 +121,7 @@ export const downloadReceipt = async (req, res) => {
       return res.status(400).json({ error: "No settled payment for this reservation" });
     }
 
-    const lang = req.query.lang || reservation.language || "sk";
-    const doc = buildReceiptPdf(reservation, reservation.accommodationId, lang);
+    const doc = buildReceiptPdf(reservation, reservation.accommodationId);
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
@@ -196,7 +176,7 @@ export const requestHostInvoice = async (req, res) => {
     const body = [
       `Guest ${reservation.name} has requested an invoice for the stay at ${[reservation.accommodationId?.name || "your property", reservation.unitName].filter(Boolean).join(" · ")}.`,
       `Booking: ${receiptNumber(reservation)} (${toCalendarDateString(reservation.checkInDate)} → ${toCalendarDateString(reservation.checkOutDate)})`,
-      `Amount paid: ${money(reservation.grossCents(), reservation.currency || "EUR")}`,
+      `Amount paid: ${money(reservation.grossCents(), reservation.currency)}`,
       billingLines.length ? `\nBilling details:\n${billingLines.join("\n")}` : "",
     ]
       .filter(Boolean)
@@ -234,7 +214,7 @@ export const requestHostInvoice = async (req, res) => {
                       border-radius:6px;padding:16px 18px;font-family:Arial,Helvetica,sans-serif;
                       font-size:14px;line-height:1.6;color:#2A2A2A;">${esc(body)}</div>
           ${callout(
-            `Putko does not issue invoices for the stay — only the host can. ` +
+            `UK Stay Hub does not issue invoices for the stay — only the host can. ` +
               `Please send the invoice directly to <strong>${esc(reservation.email)}</strong>.`,
             "warning"
           )}`,

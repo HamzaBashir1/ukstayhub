@@ -18,6 +18,7 @@ import {
   INVOICE_DRY_RUN,
   INVOICE_EMAIL_ENABLED,
 } from "../config/payments.js";
+import { DEFAULT_CURRENCY } from "../config/payments.js";
 
 const TERMINAL_STATUSES = new Set(["issued", "emailed", "paid"]);
 
@@ -80,7 +81,7 @@ function buildHostInvoiceRecord({ host, period, group }) {
     invoiceMonth: period.invoiceMonth,
     invoiceYear: period.invoiceYear,
     description: buildInvoiceDescription(period.yearMonth),
-    currency: "eur",
+    currency: DEFAULT_CURRENCY,
     dueDate: addDays(new Date(), INVOICE_DUE_DAYS),
     status: "draft",
     hostSnapshot: buildHostSnapshot(host),
@@ -167,11 +168,11 @@ async function invoiceJobForPeriod(period) {
 
     if (invoiceDocument && TERMINAL_STATUSES.has(invoiceDocument.status)) {
       // One exception. An invoice created while INVOICE_EMAIL_ENABLED was off
-      // exists in SuperFaktúra but was never sent, and `issued` is terminal —
+      // exists in Stripe but was never sent, and `issued` is terminal —
       // so once email is switched on, the monthly run would skip it forever and
       // that host would never receive the invoice for that month.
       //
-      // Delivery is retried; creation is NOT. Calling SuperFaktúra again would
+      // Delivery is retried; creation is NOT. Creating it in Stripe again would
       // issue a second tax document for the same period, which is exactly the
       // thing the idempotency check exists to prevent.
       const deliverable =

@@ -152,7 +152,7 @@ class _Invoices extends ConsumerWidget {
                         Expanded(
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text('${asInt(i['invoiceMonth']).toString().padLeft(2, '0')}/${asInt(i['invoiceYear'])}  ·  ${asString(i['invoiceNumber'])}', style: AppText.inter(size: 14, weight: FontWeight.w700, color: _forest)),
-                            Text(_money(asInt(i['grossAmountCents']), asString(i['currency'], 'eur'), t), style: AppText.inter(size: 12, color: AppColors.neutral500)),
+                            Text(_money(asInt(i['grossAmountCents']), asString(i['currency'], 'gbp'), t), style: AppText.inter(size: 12, color: AppColors.neutral500)),
                           ]),
                         ),
                         TextButton.icon(

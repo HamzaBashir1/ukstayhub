@@ -41,7 +41,7 @@ const HostReservationSchema = new mongoose.Schema(
     // the listing never rewrites what the guest was quoted.
     nightlyPriceCents: { type: Number, required: true },
     totalCents: { type: Number, required: true },
-    currency: { type: String, default: "EUR" },
+    currency: { type: String, default: "GBP" },
 
     status: {
       type: String,

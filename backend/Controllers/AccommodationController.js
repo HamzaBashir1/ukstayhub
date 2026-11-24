@@ -1612,21 +1612,21 @@ export const approveListing = async (req, res) => {
     const mailOptions = {
       from: '"UK Stay Hub Support" <support@ukstayhub.co.uk>',
       to: "support@ukstayhub.co.uk",  // Change this if you want to send it to the host's email
-      subject: `✅ Host schválil svoju ponuku`,
+      subject: `✅ Host approved their listing`,
       attachments: logoAttachments(),
       html: brandShell({
-        preheader: `${host.name || "Neznámy hostiteľ"} — ${accommodation.name || ""}`,
-        title: "Hostiteľ schválil svoju ponuku",
+        preheader: `${host.name || "Unknown host"} — ${accommodation.name || ""}`,
+        title: "Host approved their listing",
         bodyHtml: `
           <p style="margin:0 0 4px 0;">
-            <strong>${esc(host.name || "Neznámy")}</strong> schválil svoju ponuku na platforme Putko.
+            <strong>${esc(host.name || "Unknown")}</strong> approved their listing on UK Stay Hub.
           </p>
           ${detailTable([
-            ["Hostiteľ", host.name || "Neznámy"],
-            ["E-mail", host.email || "Email nie je dostupný"],
-            accommodation.name && ["Ponuka", accommodation.name],
+            ["Host", host.name || "Unknown"],
+            ["Email", host.email || "Email not available"],
+            accommodation.name && ["Listing", accommodation.name],
           ])}
-          ${button(`${process.env.CLIENT_SITE_URL}/listings/${accommodation.slug}`, "Zobraziť ponuku")}`,
+          ${button(`${process.env.CLIENT_SITE_URL}/listings/${accommodation.slug}`, "View listing")}`,
       }),
     };
 

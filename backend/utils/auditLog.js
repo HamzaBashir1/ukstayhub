@@ -2,11 +2,9 @@
 //
 // One structured line per outbound money call, whatever the provider.
 //
-// The pre-production checklist requires "comprehensive logging of all Stripe and
-// SuperFaktúra API calls for audit". Stripe already had `logStripeCall`;
-// SuperFaktúra had nothing, so a failed invoice left only an admin alert and no
-// record of what was actually sent. Both now go through here, in the same shape,
-// so `[putko-audit]` greps the whole money trail.
+// The pre-production checklist requires "comprehensive logging of all external
+// API calls for audit". Stripe calls and invoice delivery both go through here,
+// in the same shape, so `[putko-audit]` greps the whole money trail.
 //
 // Never log credentials or a full request body — the context is deliberately a
 // small set of identifiers, not a dump.
@@ -40,7 +38,7 @@ export function logExternalCall(channel, operation, context = {}, outcome = "ok"
     entry.errorCode = error.code || error.type || undefined;
     entry.errorMessage = error.message;
     // Axios puts the provider's own response here; it is what actually explains
-    // a SuperFaktúra rejection.
+    // a provider rejection.
     const providerBody = error.response?.data;
     if (providerBody) {
       entry.providerError =

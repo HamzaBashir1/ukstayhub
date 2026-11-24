@@ -22,6 +22,7 @@ import mongoose from "mongoose";
 import Accommodation from "../models/Accommodation.js";
 import Reservation from "../models/Reservation.js";
 import { dayNumber, isObjectId, todayIso } from "../utils/hostWorkspace.js";
+import { DEFAULT_CURRENCY } from "../config/payments.js";
 
 const NOT_FOUND = { message: "Reservation not found." };
 
@@ -148,7 +149,7 @@ const serialize = (reservation, today = todayIso()) => {
     // zero-night stay must not divide by zero.
     nightlyPriceCents: nights > 0 ? Math.round(total / nights) : total,
     totalCents: total,
-    currency: (reservation.currency || "eur").toUpperCase(),
+    currency: (reservation.currency || DEFAULT_CURRENCY).toUpperCase(),
     status: reservation.isApproved,
     stage: reservationStage(reservation, today),
     actions: allowedActions(reservation),

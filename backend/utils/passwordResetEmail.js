@@ -10,6 +10,8 @@ import {
   TEXT_SIGNOFF,
 } from "./emailLayout.js";
 
+const hours = (n) => `${n} hour${n === 1 ? "" : "s"}`;
+
 /**
  * The reset link email.
  *
@@ -18,55 +20,55 @@ import {
  *   expiresInHours  how long the link stays valid (matches resetPasswordExpires)
  */
 export function buildPasswordResetEmail({ resetUrl, expiresInHours = 1 } = {}) {
-  const subject = "Obnovenie hesla na Putko.sk";
+  const subject = "Reset your UK Stay Hub password";
 
-  const text = `Obnovenie hesla
+  const text = `Reset your password
 
-Dostali sme žiadosť o obnovenie hesla k vášmu účtu na Putko.sk.
+We received a request to reset the password for your UK Stay Hub account.
 
-Nové heslo si nastavíte na tejto adrese:
+Set a new password here:
 ${resetUrl}
 
-Platnosť odkazu: ${expiresInHours} hodina od odoslania tohto e-mailu.
+This link is valid for ${hours(expiresInHours)} from when this email was sent.
 
-Ak ste o obnovenie hesla nežiadali, tento e-mail môžete ignorovať — vaše heslo zostáva nezmenené.
+If you didn't ask to reset your password, you can ignore this email — your password stays the same.
 
-Ak potrebujete pomoc, napíšte nám na support@ukstayhub.co.uk.
+Need help? Email us at support@ukstayhub.co.uk.
 
 ${TEXT_SIGNOFF}`;
 
   const html = brandShell({
-    preheader: "Odkaz na obnovenie hesla k vášmu účtu na Putko.sk.",
-    title: "Obnovenie hesla",
+    preheader: "Your link to reset your UK Stay Hub password.",
+    title: "Reset your password",
     bodyHtml: `
     <p style="margin:0 0 16px 0;">
-      Dostali sme žiadosť o obnovenie hesla k vášmu účtu na <strong>Putko.sk</strong>.
+      We received a request to reset the password for your <strong>UK Stay Hub</strong> account.
     </p>
 
     <p style="margin:0 0 8px 0;">
-      Kliknutím na tlačidlo nižšie si nastavíte nové heslo.
+      Click the button below to set a new password.
     </p>
 
-    ${button(resetUrl, "Nastaviť nové heslo")}
+    ${button(resetUrl, "Set a new password")}
 
     ${callout(
-      `<strong>Platnosť odkazu je ${expiresInHours} hodina.</strong> Po jej uplynutí si vyžiadajte nový.`
+      `<strong>This link is valid for ${hours(expiresInHours)}.</strong> After that, request a new one.`
     )}
 
     <p style="margin:20px 0 8px 0;font-size:14px;color:${MUTED};">
-      Ak tlačidlo nefunguje, skopírujte do prehliadača túto adresu:
+      If the button doesn't work, copy this address into your browser:
     </p>
     <p style="margin:0 0 20px 0;font-size:13px;word-break:break-all;">
       <a href="${resetUrl}" style="color:${TEAL_LIGHT};">${esc(resetUrl)}</a>
     </p>
 
     <p style="margin:0 0 16px 0;">
-      Ak ste o obnovenie hesla <strong>nežiadali</strong>, tento e-mail môžete ignorovať —
-      vaše heslo zostáva nezmenené.
+      If you <strong>didn't</strong> ask to reset your password, you can ignore this email —
+      your password stays the same.
     </p>
 
     <p style="margin:0;">
-      Potrebujete pomoc? Napíšte nám na
+      Need help? Email us at
       <a href="mailto:support@ukstayhub.co.uk" style="color:${TEAL_LIGHT};">support@ukstayhub.co.uk</a>.
     </p>`,
   });
@@ -76,39 +78,39 @@ ${TEXT_SIGNOFF}`;
 
 /** Confirmation that the password was actually changed. */
 export function buildPasswordResetSuccessEmail() {
-  const subject = "Vaše heslo bolo zmenené";
+  const subject = "Your UK Stay Hub password was changed";
 
-  const text = `Heslo bolo úspešne zmenené
+  const text = `Password changed
 
-Heslo k vášmu účtu na Putko.sk bolo práve zmenené.
+The password for your UK Stay Hub account has just been changed.
 
-Ak ste túto zmenu vykonali vy, nemusíte robiť nič ďalšie.
+If you made this change, there's nothing else to do.
 
-Ak ste heslo nemenili, ihneď nás kontaktujte na support@ukstayhub.co.uk — váš účet môže byť ohrozený.
+If you didn't change your password, contact us immediately at support@ukstayhub.co.uk — your account may be at risk.
 
 ${TEXT_SIGNOFF}`;
 
   const html = brandShell({
-    preheader: "Heslo k vášmu účtu na Putko.sk bolo zmenené.",
-    title: "Heslo bolo úspešne zmenené",
+    preheader: "The password for your UK Stay Hub account was changed.",
+    title: "Password changed",
     bodyHtml: `
     <p style="margin:0 0 16px 0;">
-      Heslo k vášmu účtu na <strong>Putko.sk</strong> bolo práve zmenené.
+      The password for your <strong>UK Stay Hub</strong> account has just been changed.
     </p>
 
     <p style="margin:0 0 20px 0;">
-      Ak ste túto zmenu vykonali vy, nemusíte robiť nič ďalšie.
+      If you made this change, there's nothing else to do.
     </p>
 
     ${callout(
-      `<strong>Nemenili ste heslo?</strong> Ihneď nás kontaktujte na
+      `<strong>Didn't change your password?</strong> Contact us immediately at
        <a href="mailto:support@ukstayhub.co.uk" style="color:${TEAL_LIGHT};">support@ukstayhub.co.uk</a> —
-       váš účet môže byť ohrozený.`,
+       your account may be at risk.`,
       "warning"
     )}
 
     <p style="margin:20px 0 0 0;">
-      <a href="${SITE}/login" style="color:${TEAL_LIGHT};">Prihlásiť sa na Putko.sk</a>
+      <a href="${SITE}/login" style="color:${TEAL_LIGHT};">Sign in to UK Stay Hub</a>
     </p>`,
   });
 

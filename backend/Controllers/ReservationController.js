@@ -23,7 +23,6 @@ import {
   section,
   logoAttachments,
 } from "../utils/emailLayout.js";
-import { sendEvent } from "../utils/FacebookCAPI.js";
 import { getTiersSnapshot, getPolicyNameSnapshot } from "../utils/cancellationPolicy.js";
 import { calculateFees, DEFAULT_CURRENCY, PAYOUT_DELAY_HOURS } from "../config/payments.js";
 import { checkStayLength, quoteStay, priceMismatch, extrasSummary } from "../utils/pricing.js";
@@ -46,6 +45,7 @@ import {
 import { hostOnboardingGuidance } from "../utils/hostOnboardingSteps.js";
 import { isAccountPayoutReady, resolvePayoutAccount } from "../utils/payoutAccounts.js";
 import { missingBillingFieldsOf } from "../utils/hostBilling.js";
+import { formatCents } from "../utils/money.js";
 
 
 
@@ -365,41 +365,6 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    // Facebook CAPI - InitiateCheckout
-    const { fbp, fbc } = req.body;
-    try {
-        const eventData = {
-            eventName: 'InitiateCheckout',
-            productId: savedReservation._id.toString(),
-            quantity: 1,
-            currency: savedReservation.currency || 'eur',
-            value: savedReservation.totalPrice || 0,
-            contentName: 'Reservation',
-            eventSourceUrl: req.headers.referer || req.headers.origin || '', 
-        };
-
-        const listItems = [
-             {
-                id: savedReservation.accommodationId.toString(),
-                quantity: 1,
-                delivery_category: 'home_delivery' // or 'in_store' or whatever fits
-             }
-        ];
-        
-        // We can pass more user data if available
-        const userPayload = {
-            email: savedReservation.email,
-            clientIp: req.ip || req.connection.remoteAddress,
-            clientUserAgent: req.headers['user-agent'],
-            fbp: fbp,
-            fbc: fbc
-        };
-
-        sendEvent('InitiateCheckout', eventData, userPayload); // async, don't await to not block response
-    } catch (e) {
-        console.error("FB CAPI Error (InitiateCheckout):", e);
-    }
-
     // The capability token is returned exactly once, here. It is the only proof
     // an anonymous guest has that this booking is theirs, so the client must
     // keep it for checkout, receipt download and cancellation.
@@ -504,7 +469,7 @@ export const ensureGuestAccountForBooking = async (reservation) => {
     name: reservation.name,
     email,
     password,
-    loginUrl: `${process.env.CLIENT_SITE_URL || "https://putko.sk"}/login`,
+    loginUrl: `${process.env.CLIENT_SITE_URL || "https://ukstayhub.co.uk"}/login`,
   });
 
   await getTransporter().sendMail({
@@ -931,10 +896,12 @@ export const updateReservation = async (req, res) => {
           // 2. Send Email to Guest
           const transporter = getTransporter();
 
-          const checkInDate = new Date(reservation.checkInDate).toLocaleDateString();
-          const checkOutDate = new Date(reservation.checkOutDate).toLocaleDateString();
+          const ukDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+          const checkInDate = ukDate(reservation.checkInDate);
+          const checkOutDate = ukDate(reservation.checkOutDate);
 
-          const lang = reservation.language || 'sk'; // Default to Slovak
+          // Emails are always sent in English.
+          const lang = 'en';
 
           const t = {
             en: {
@@ -952,24 +919,9 @@ export const updateReservation = async (req, res) => {
               payButton: "Pay Now",
               fallbackLink: "If the button above doesn't work, copy and paste this link into your browser:"
             },
-            sk: {
-              subject: "Vaša rezervácia je schválená – Dokončite platbu",
-              title: "Vaša rezervácia je schválená!",
-              greeting: "Vážený/á",
-              approvedMessage: `Dobrá správa! Vaša rezervácia pre <strong>${reservation.accommodationId?.name || "Ubytovanie"}</strong> bola schválená hostiteľom.`,
-              detailsHeader: "Podrobnosti rezervácie",
-              checkIn: "Príchod",
-              checkOut: "Odchod",
-              guests: "Hostia",
-              pets: "Počet zvierat",
-              totalAmount: "Celková suma",
-              paymentInstruction: "Na potvrdenie vašej rezervácie prosím dokončite platbu kliknutím na tlačidlo nižšie:",
-              payButton: "Zaplatiť teraz",
-              fallbackLink: "Ak tlačidlo vyššie nefunguje, skopírujte a vložte tento odkaz do vášho prehliadača:"
-            }
           };
 
-          const text = t[lang] || t.sk;
+          const text = t.en;
 
           const mailOptions = {
             from: MAIL_FROM,
@@ -977,7 +929,7 @@ export const updateReservation = async (req, res) => {
             subject: text.subject,
             attachments: logoAttachments(),
             html: brandShell({
-              preheader: `${checkInDate} – ${checkOutDate} · €${(amountCents / 100).toFixed(2)}`,
+              preheader: `${checkInDate} – ${checkOutDate} · ${formatCents(amountCents, reservation.currency)}`,
               title: text.title,
               bodyHtml: `
                 <p style="margin:0 0 14px 0;">${text.greeting} <strong>${esc(reservation.name)}</strong>,</p>
@@ -985,7 +937,7 @@ export const updateReservation = async (req, res) => {
                 ${section(
                   text.detailsHeader,
                   detailTable([
-                    reservation.unitName && [lang === "en" ? "Unit" : "Jednotka", reservation.unitName],
+                    reservation.unitName && ["Unit", reservation.unitName],
                     [text.checkIn, checkInDate],
                     [text.checkOut, checkOutDate],
                     [text.guests, String(reservation.numberOfPersons)],
@@ -993,8 +945,8 @@ export const updateReservation = async (req, res) => {
                       text.pets,
                       String(Math.max(1, Number(reservation.numberOfPets) || 1)),
                     ],
-                    reservation.extras?.length && [lang === "en" ? "Extras" : "Doplnky", extrasSummary(reservation.extras, lang)],
-                    [text.totalAmount, `€${(amountCents / 100).toFixed(2)}`],
+                    reservation.extras?.length && ["Extras", extrasSummary(reservation.extras, reservation.currency)],
+                    [text.totalAmount, formatCents(amountCents, reservation.currency)],
                   ])
                 )}
                 <p style="margin:18px 0 0 0;">${text.paymentInstruction}</p>

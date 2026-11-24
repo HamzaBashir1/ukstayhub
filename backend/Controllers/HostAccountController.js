@@ -80,37 +80,9 @@ const messages = {
     emailTaken: "This email address is already used by another account.",
     emailChanged: "Your email address was updated.",
   },
-  sk: {
-    notFound: "Účet sa nenašiel.",
-    nameRequired: "Zadajte meno a priezvisko.",
-    phoneInvalid: "Zadajte platné telefónne číslo v medzinárodnom formáte.",
-    genderInvalid: "Vyberte platné pohlavie.",
-    currentPasswordRequired: "Zadajte svoje aktuálne heslo.",
-    passwordTooShort: "Nové heslo musí mať aspoň 8 znakov.",
-    currentPasswordWrong: "Aktuálne heslo je nesprávne.",
-    noPasswordSet: "Tento účet sa prihlasuje cez Google a nemá heslo na zmenu.",
-    passwordChanged: "Heslo bolo úspešne zmenené.",
-    serverError: "Niečo sa pokazilo. Skúste to znova.",
-    subjectTypeInvalid: "Vyberte platný typ fakturácie.",
-    billingNameRequired: "Zadajte fakturačné meno.",
-    icoRequired: "Pre firmu je potrebné IČO.",
-    icoInvalid: "IČO musí mať 6 až 8 číslic.",
-    dicRequired: "Pre firmu je potrebné DIČ.",
-    dicInvalid: "Slovenské DIČ má 10 číslic.",
-    icDphInvalid: "IČ DPH má tvar SK2020123456, alebo pole nechajte prázdne.",
-    streetRequired: "Ulica a číslo sú povinné.",
-    cityRequired: "Mesto je povinné.",
-    zipRequired: "PSČ je povinné.",
-    zipInvalid: "Slovenské PSČ má 5 číslic.",
-    countryRequired: "Krajina je povinná.",
-    emailInvalid: "Zadajte platnú e-mailovú adresu.",
-    emailSame: "Toto už je vaša e-mailová adresa.",
-    emailTaken: "Túto e-mailovú adresu už používa iný účet.",
-    emailChanged: "E-mailová adresa bola aktualizovaná.",
-  },
 };
 
-const t = (req) => messages[req.body?.lang === "en" ? "en" : "sk"];
+const t = () => messages.en;
 
 /**
  * The account as the screen may see it.

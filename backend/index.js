@@ -44,7 +44,6 @@ import BlogCommentRoutes from "./Routes/BlogCommentRoutes.js"
 // import { startReviewJob } from "./utils/reviewJob.js";
 import paymentRoutes from "./Routes/paymentRoutes.js"
 import { handleStripeWebhook } from "./Controllers/PaymentController.js";
-import facebookEventsRoutes from "./Routes/facebookEventsRoutes.js"
 import { connectRedis } from "./utils/redis.js";
 import cancellationRoutes from "./Routes/cancellationRoutes.js";
 import receiptRoutes from "./Routes/receiptRoutes.js";
@@ -91,7 +90,7 @@ const server = http.createServer(app);
 // Initialize Socket.IO with the HTTP server
 const io = new Server(server, {
   cors: {
-    origin: "https://www.putko.sk",
+    origin: ["https://ukstayhub.co.uk", "https://www.ukstayhub.co.uk"],
     credentials: true,
   },
 });
@@ -184,7 +183,6 @@ app.use("/api", ChatRoutes);
 app.use("/api", uploadRoutes);
 app.use("/api", LoginHistory);
 app.use('/api/payments', paymentRoutes);
-app.use('/api', facebookEventsRoutes);
 app.use('/api', cancellationRoutes);
 app.use('/api', receiptRoutes);
 app.use('/api', dac7Routes);

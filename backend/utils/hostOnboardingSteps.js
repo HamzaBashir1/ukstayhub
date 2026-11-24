@@ -33,49 +33,49 @@ import { hostBookingBlockers } from "./listingGating.js";
 import { missingBillingFieldsOf } from "./hostBilling.js";
 import { resolvePayoutAccount } from "./payoutAccounts.js";
 
-/** Host-facing Slovak names for the invoicing fields the gate can report. */
-const BILLING_FIELD_LABELS_SK = {
-  billing_name: "Fakturačné meno",
-  ico: "IČO",
-  dic: "DIČ",
-  billing_address_street: "Ulica a číslo",
-  billing_address_city: "Mesto",
-  billing_address_zip: "PSČ",
-  billing_address_country: "Krajina",
+/** Host-facing names for the invoicing fields the gate can report. */
+const BILLING_FIELD_LABELS = {
+  billing_name: "Billing name",
+  ico: "Company registration number (IČO)",
+  dic: "Tax ID (DIČ)",
+  billing_address_street: "Street and number",
+  billing_address_city: "City",
+  billing_address_zip: "Postcode",
+  billing_address_country: "Country",
 };
 
 /**
- * Slovak names for the Stripe requirement codes seen most often on an Express
- * account in SK/CZ. Anything unrecognised falls back to the raw code with its
- * dots and underscores opened up — the same treatment the Payments screen gives
- * it — so a code Stripe adds later still renders as words rather than vanishing.
+ * Names for the Stripe requirement codes seen most often on an Express
+ * account. Anything unrecognised falls back to the raw code with its dots and
+ * underscores opened up — the same treatment the Payments screen gives it — so
+ * a code Stripe adds later still renders as words rather than vanishing.
  */
-const STRIPE_REQUIREMENT_LABELS_SK = {
-  "individual.verification.document": "Doklad totožnosti (občiansky preukaz alebo pas)",
-  "individual.verification.additional_document": "Doklad o adrese",
-  "individual.id_number": "Rodné číslo / identifikačné číslo",
-  "individual.address.line1": "Adresa trvalého pobytu",
-  "individual.dob.day": "Dátum narodenia",
-  "individual.dob.month": "Dátum narodenia",
-  "individual.dob.year": "Dátum narodenia",
-  "individual.first_name": "Meno",
-  "individual.last_name": "Priezvisko",
-  "individual.email": "E-mail",
-  "individual.phone": "Telefónne číslo",
-  "company.verification.document": "Doklad o registrácii spoločnosti",
-  "company.tax_id": "IČ DPH / daňové číslo",
-  "company.address.line1": "Sídlo spoločnosti",
-  external_account: "Číslo bankového účtu (IBAN) pre výplaty",
-  "business_profile.url": "Webová stránka alebo popis podnikania",
-  "business_profile.mcc": "Odvetvie podnikania",
-  "tos_acceptance.date": "Súhlas s podmienkami Stripe",
-  "tos_acceptance.ip": "Súhlas s podmienkami Stripe",
+const STRIPE_REQUIREMENT_LABELS = {
+  "individual.verification.document": "Photo ID (passport or national ID card)",
+  "individual.verification.additional_document": "Proof of address",
+  "individual.id_number": "Personal ID number",
+  "individual.address.line1": "Home address",
+  "individual.dob.day": "Date of birth",
+  "individual.dob.month": "Date of birth",
+  "individual.dob.year": "Date of birth",
+  "individual.first_name": "First name",
+  "individual.last_name": "Last name",
+  "individual.email": "Email",
+  "individual.phone": "Phone number",
+  "company.verification.document": "Company registration document",
+  "company.tax_id": "VAT / tax number",
+  "company.address.line1": "Registered company address",
+  external_account: "Bank account for payouts",
+  "business_profile.url": "Website or business description",
+  "business_profile.mcc": "Business category",
+  "tos_acceptance.date": "Acceptance of Stripe's terms",
+  "tos_acceptance.ip": "Acceptance of Stripe's terms",
 };
 
-export const billingFieldLabelSk = (key) => BILLING_FIELD_LABELS_SK[key] || String(key);
+export const billingFieldLabel = (key) => BILLING_FIELD_LABELS[key] || String(key);
 
-export const stripeRequirementLabelSk = (code) =>
-  STRIPE_REQUIREMENT_LABELS_SK[code] || String(code).replace(/[._]/g, " ");
+export const stripeRequirementLabel = (code) =>
+  STRIPE_REQUIREMENT_LABELS[code] || String(code).replace(/[._]/g, " ");
 
 /** Unique, order preserving — Stripe repeats dob.day/month/year, which share one label. */
 const uniq = (values) => [...new Set(values)];
@@ -124,41 +124,41 @@ export function hostOnboardingGuidance(host, accommodation = null) {
   const steps = [
     {
       key: "connect",
-      title: "Pripojte výplatný účet",
+      title: "Connect a payout account",
       detail: hasAccount
-        ? "Účet je pripojený."
-        : "V profile v sekcii <strong>Platby</strong> kliknite na <strong>Pripojiť účet</strong>. " +
-          "Presmerujeme vás na Stripe, nášho platobného partnera — registrácia je " +
-          "bezplatná a trvá približne 5 minút.",
+        ? "Your account is connected."
+        : "In your profile, go to <strong>Payments</strong> and click <strong>Connect account</strong>. " +
+          "We'll take you to Stripe, our payment partner — signing up is free and " +
+          "takes about 5 minutes.",
       done: hasAccount,
     },
     {
       key: "verify",
-      title: "Dokončite overenie u Stripe",
+      title: "Finish verification with Stripe",
       detail: stripeVerified
-        ? "Overenie je dokončené — Stripe povolil platby aj výplaty."
+        ? "Verification is complete — Stripe has enabled payments and payouts."
         : requirements.length
-          ? "Stripe od vás ešte potrebuje: " +
-            uniq(requirements.map(stripeRequirementLabelSk))
+          ? "Stripe still needs: " +
+            uniq(requirements.map(stripeRequirementLabel))
               .map((label) => `<strong>${label}</strong>`)
               .join(", ") +
-            ". Doplníte to priamo u Stripe cez tlačidlo nižšie."
-          : "Stripe si vyžiada doklad totožnosti, dátum narodenia, adresu a číslo účtu " +
-            "(IBAN), na ktorý vám budú chodiť výplaty. Overenie zvyčajne prebehne do " +
-            "niekoľkých minút, výnimočne do jedného pracovného dňa.",
+            ". You can add this directly with Stripe using the button below."
+          : "Stripe will ask for photo ID, your date of birth, your address and the bank " +
+            "account your payouts should go to. Verification usually takes a few " +
+            "minutes, occasionally up to one working day.",
       done: stripeVerified,
     },
     {
       key: "billing",
-      title: "Doplňte fakturačné údaje",
+      title: "Complete your billing details",
       detail: billingDone
-        ? "Fakturačné údaje sú kompletné."
-        : "Potrebujeme ich, aby sme vám mohli vystaviť faktúru za províziu Putko. " +
+        ? "Your billing details are complete."
+        : "We need them to invoice you for the UK Stay Hub service fee. " +
           (missingBilling.length
-            ? "Chýba: " +
-              missingBilling.map((f) => `<strong>${billingFieldLabelSk(f)}</strong>`).join(", ") +
+            ? "Missing: " +
+              missingBilling.map((f) => `<strong>${billingFieldLabel(f)}</strong>`).join(", ") +
               "."
-            : "Vyplníte ich v profile v sekcii <strong>Platby</strong>."),
+            : "Add them in your profile under <strong>Payments</strong>."),
       done: billingDone,
     },
   ];
@@ -171,7 +171,7 @@ export function hostOnboardingGuidance(host, accommodation = null) {
     requirements,
     missingBilling,
     headline: headlineFor(status, { hasAccount, stripeVerified, billingDone }),
-    ctaLabel: hasAccount ? "Dokončiť nastavenie výplat" : "Pripojiť výplatný účet",
+    ctaLabel: hasAccount ? "Finish payout setup" : "Connect a payout account",
   };
 }
 
@@ -184,26 +184,26 @@ export function hostOnboardingGuidance(host, accommodation = null) {
  */
 function headlineFor(status, { hasAccount, stripeVerified, billingDone }) {
   if (stripeVerified && billingDone) {
-    return "Vaše výplaty sú nastavené — žiadosť môžete prijať hneď.";
+    return "Your payouts are set up — you can accept the request right away.";
   }
 
   if (stripeVerified && !billingDone) {
     return (
-      "Platby máte nastavené, chýbajú už len fakturačné údaje. Bez nich vám nevieme " +
-      "vystaviť faktúru za províziu, a preto žiadosť zatiaľ nemôžete prijať."
+      "Your payments are set up — only your billing details are missing. Without them " +
+      "we can't invoice the service fee, so you can't accept the request yet."
     );
   }
 
   if (status === LISTING_STATUS.PENDING || hasAccount) {
     return (
-      "Váš výplatný účet je pripojený, ale Stripe ešte nedokončil overenie. Kým sa " +
-      "overenie nedokončí, nemáme kam poslať peniaze za túto rezerváciu."
+      "Your payout account is connected, but Stripe hasn't finished verifying it. " +
+      "Until it does, we have nowhere to send the money for this booking."
     );
   }
 
   return (
-    "Vaše ubytovanie zatiaľ nemá pripojený výplatný účet, takže táto rezervácia " +
-    "nemôže byť zaplatená. Nastavenie zaberie približne 5 minút."
+    "Your listing doesn't have a payout account connected yet, so this booking " +
+    "can't be paid. Setting it up takes about 5 minutes."
   );
 }
 

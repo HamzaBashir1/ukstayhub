@@ -163,7 +163,7 @@ export const getStripeConnectedHostsCount = async (req, res) => {
       .select('userId name slug')
       .lean();
     const accommodationsByHost = new Map();
-    const siteUrl = (process.env.CLIENT_SITE_URL || 'https://putko.sk').replace(/\/+$/, '');
+    const siteUrl = (process.env.CLIENT_SITE_URL || 'https://ukstayhub.co.uk').replace(/\/+$/, '');
 
     for (const accommodation of accommodations) {
       const hostId = String(accommodation.userId);

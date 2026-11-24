@@ -24,61 +24,61 @@ import {
  *   loginUrl     where to sign in
  */
 export function buildBookingAccountEmail({ name, email, password, loginUrl } = {}) {
-  const subject = "Váš účet na Putko.sk";
+  const subject = "Your UK Stay Hub account";
 
-  const text = `Vytvorili sme vám účet
+  const text = `We've created an account for you
 
-Dobrý deň${name ? ` ${name}` : ""},
+Hi${name ? ` ${name}` : ""},
 
-k vašej rezervácii sme vytvorili účet na Putko.sk, aby ste mali svoje rezervácie
-na jednom mieste.
+we've created a UK Stay Hub account for your booking, so all your bookings are
+in one place.
 
-Prihlasovacie údaje:
-  E-mail: ${email}
-  Dočasné heslo: ${password}
+Your sign-in details:
+  Email: ${email}
+  Temporary password: ${password}
 
-Prihlásiť sa môžete tu:
+Sign in here:
 ${loginUrl}
 
-Toto heslo je dočasné — pri prvom prihlásení si nastavte vlastné. Kvôli
-bezpečnosti tento e-mail potom odstráňte.
+This password is temporary — please set your own the first time you sign in,
+then delete this email for security.
 
-Ak si účet neželáte, môžete ho ignorovať; vaša rezervácia platí aj tak.`;
+If you don't want an account, you can ignore this email; your booking is still valid.`;
 
   const html = brandShell({
-    title: "Vytvorili sme vám účet",
+    title: "We've created an account for you",
     bodyHtml: `
     <p style="margin:0 0 16px 0;">
-      Dobrý deň${name ? ` ${esc(name)}` : ""}, k vašej rezervácii sme vytvorili účet na
-      <strong>Putko.sk</strong>, aby ste mali svoje rezervácie na jednom mieste.
+      Hi${name ? ` ${esc(name)}` : ""}, we've created a <strong>UK Stay Hub</strong>
+      account for your booking, so all your bookings are in one place.
     </p>
 
-    <p style="margin:0 0 8px 0;"><strong>Prihlasovacie údaje</strong></p>
-    <p style="margin:0 0 4px 0;font-size:15px;">E-mail: <strong>${esc(email)}</strong></p>
+    <p style="margin:0 0 8px 0;"><strong>Your sign-in details</strong></p>
+    <p style="margin:0 0 4px 0;font-size:15px;">Email: <strong>${esc(email)}</strong></p>
     <p style="margin:0 0 20px 0;font-size:15px;">
-      Dočasné heslo: <strong style="font-family:monospace;">${esc(password)}</strong>
+      Temporary password: <strong style="font-family:monospace;">${esc(password)}</strong>
     </p>
 
-    ${button(loginUrl, "Prihlásiť sa")}
+    ${button(loginUrl, "Sign in")}
 
     ${callout(
-      `<strong>Toto heslo je dočasné.</strong> Pri prvom prihlásení si nastavte vlastné
-       a tento e-mail potom odstráňte.`
+      `<strong>This password is temporary.</strong> Please set your own the first time
+       you sign in, then delete this email.`
     )}
 
     <p style="margin:20px 0 8px 0;font-size:14px;color:${MUTED};">
-      Ak tlačidlo nefunguje, skopírujte do prehliadača túto adresu:
+      If the button doesn't work, copy this address into your browser:
     </p>
     <p style="margin:0 0 20px 0;font-size:13px;word-break:break-all;">
       <a href="${loginUrl}" style="color:${TEAL_LIGHT};">${esc(loginUrl)}</a>
     </p>
 
     <p style="margin:0 0 16px 0;">
-      Ak si účet neželáte, môžete tento e-mail ignorovať — vaša rezervácia platí aj tak.
+      If you don't want an account, you can ignore this email — your booking is still valid.
     </p>
 
     <p style="margin:0;">
-      Potrebujete pomoc? Napíšte nám na
+      Need help? Email us at
       <a href="mailto:support@ukstayhub.co.uk" style="color:${TEAL_LIGHT};">support@ukstayhub.co.uk</a>.
     </p>`,
   });

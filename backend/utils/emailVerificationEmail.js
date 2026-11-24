@@ -1,5 +1,6 @@
 import {
   SITE,
+  TEAL,
   TEAL_LIGHT,
   MUTED,
   esc,
@@ -10,70 +11,67 @@ import {
   TEXT_SIGNOFF,
 } from "./emailLayout.js";
 
+const greetingFor = (name) => {
+  const n = (name || "").trim();
+  return n ? `Hi ${n},` : "Hi there,";
+};
+
 /**
- * The verification link email.
+ * The verification code email.
  *
  * @param {object} options
- *   name            the registrant's first name, optional
- *   verificationUrl the full link, built by the caller
- *   expiresInHours  how long the token stays valid (matches the JWT expiry)
+ *   name             the registrant's first name, optional
+ *   code             the 6-digit code to type into the app
+ *   expiresInMinutes how long the code stays valid
  */
 export function buildEmailVerificationEmail({
   name,
-  verificationUrl,
-  expiresInHours = 1,
+  code,
+  expiresInMinutes = 15,
 } = {}) {
-  const subject = "Potvrďte svoju e-mailovú adresu – Putko.sk";
-
-  const greetingName = (name || "").trim();
-  const greeting = greetingName ? `Vážený/á ${greetingName},` : "Vážený/á zákazník,";
+  const subject = `${code} is your UK Stay Hub verification code`;
+  const greeting = greetingFor(name);
 
   const text = `${greeting}
 
-ďakujeme za registráciu na Putko.sk. Na dokončenie registrácie potvrďte svoju e-mailovú adresu.
+Thanks for signing up to UK Stay Hub. To finish creating your account, enter this verification code in the app:
 
-Potvrdíte ju na tejto adrese:
-${verificationUrl}
+${code}
 
-Platnosť odkazu: ${expiresInHours} hodina od odoslania tohto e-mailu. Po jej uplynutí si vyžiadajte nový.
+The code is valid for ${expiresInMinutes} minutes. After that, request a new one in the app.
 
-Ak ste sa neregistrovali, tento e-mail môžete ignorovať — bez potvrdenia sa účet neaktivuje.
+Never share this code with anyone. If you didn't sign up, you can ignore this email — the account won't be activated without it.
 
-Ak potrebujete pomoc, napíšte nám na support@ukstayhub.co.uk.
+Need help? Email us at support@ukstayhub.co.uk.
 
 ${TEXT_SIGNOFF}`;
 
   const html = brandShell({
-    preheader: "Potvrďte svoju e-mailovú adresu a dokončite registráciu na Putko.sk.",
-    title: "Potvrďte svoju e-mailovú adresu",
+    preheader: `Your verification code is ${code}.`,
+    title: "Verify your email address",
     bodyHtml: `
     <p style="margin:0 0 16px 0;">${esc(greeting)}</p>
 
     <p style="margin:0 0 8px 0;">
-      ďakujeme za registráciu na <strong>Putko.sk</strong>. Na dokončenie registrácie
-      potvrďte svoju e-mailovú adresu kliknutím na tlačidlo nižšie.
+      Thanks for signing up to <strong>UK Stay Hub</strong>. To finish creating your
+      account, enter this verification code in the app:
     </p>
 
-    ${button(verificationUrl, "Potvrdiť e-mailovú adresu")}
+    <div style="margin:24px 0;text-align:center;">
+      <span style="display:inline-block;padding:14px 24px;border-radius:12px;background:#F4F6F4;border:1px solid #E4E9E5;font-family:'Courier New',monospace;font-size:32px;font-weight:700;letter-spacing:8px;color:${TEAL};">${esc(code)}</span>
+    </div>
 
     ${callout(
-      `<strong>Platnosť odkazu je ${expiresInHours} hodina.</strong> Po jej uplynutí si vyžiadajte nový.`
+      `<strong>This code is valid for ${expiresInMinutes} minutes.</strong> After that, request a new one in the app. Never share this code with anyone.`
     )}
 
-    <p style="margin:20px 0 8px 0;font-size:14px;color:${MUTED};">
-      Ak tlačidlo nefunguje, skopírujte do prehliadača túto adresu:
-    </p>
-    <p style="margin:0 0 20px 0;font-size:13px;word-break:break-all;">
-      <a href="${verificationUrl}" style="color:${TEAL_LIGHT};">${esc(verificationUrl)}</a>
+    <p style="margin:20px 0 16px 0;">
+      If you <strong>didn't sign up</strong>, you can ignore this email — the account
+      won't be activated without it.
     </p>
 
-    <p style="margin:0 0 16px 0;">
-      Ak ste sa <strong>neregistrovali</strong>, tento e-mail môžete ignorovať — bez
-      potvrdenia sa účet neaktivuje.
-    </p>
-
-    <p style="margin:0;">
-      Potrebujete pomoc? Napíšte nám na
+    <p style="margin:0;font-size:14px;color:${MUTED};">
+      Need help? Email us at
       <a href="mailto:support@ukstayhub.co.uk" style="color:${TEAL_LIGHT};">support@ukstayhub.co.uk</a>.
     </p>`,
   });
@@ -83,37 +81,35 @@ ${TEXT_SIGNOFF}`;
 
 /** Confirmation that the address has been verified and the account is active. */
 export function buildEmailVerifiedEmail({ name } = {}) {
-  const subject = "E-mailová adresa bola potvrdená – Putko.sk";
-
-  const greetingName = (name || "").trim();
-  const greeting = greetingName ? `Vážený/á ${greetingName},` : "Vážený/á zákazník,";
+  const subject = "Your email is verified – welcome to UK Stay Hub";
+  const greeting = greetingFor(name);
 
   const text = `${greeting}
 
-vaša e-mailová adresa bola úspešne potvrdená a váš účet na Putko.sk je aktívny.
+Your email address has been verified and your UK Stay Hub account is now active.
 
-Teraz sa môžete prihlásiť a začať:
+You can sign in and get started here:
 ${SITE}/login
 
-Ak potrebujete pomoc, napíšte nám na support@ukstayhub.co.uk.
+Need help? Email us at support@ukstayhub.co.uk.
 
 ${TEXT_SIGNOFF}`;
 
   const html = brandShell({
-    preheader: "Vaša e-mailová adresa bola potvrdená — účet na Putko.sk je aktívny.",
-    title: "E-mailová adresa bola potvrdená",
+    preheader: "Your email address is verified — your UK Stay Hub account is active.",
+    title: "Email address verified",
     bodyHtml: `
     <p style="margin:0 0 16px 0;">${esc(greeting)}</p>
 
     <p style="margin:0 0 8px 0;">
-      vaša e-mailová adresa bola úspešne potvrdená a váš účet na <strong>Putko.sk</strong>
-      je aktívny. Teraz sa môžete prihlásiť a začať.
+      Your email address has been verified and your <strong>UK Stay Hub</strong> account
+      is now active. You can sign in and get started.
     </p>
 
-    ${button(`${SITE}/login`, "Prihlásiť sa")}
+    ${button(`${SITE}/login`, "Sign in")}
 
     <p style="margin:0;">
-      Potrebujete pomoc? Napíšte nám na
+      Need help? Email us at
       <a href="mailto:support@ukstayhub.co.uk" style="color:${TEAL_LIGHT};">support@ukstayhub.co.uk</a>.
     </p>`,
   });

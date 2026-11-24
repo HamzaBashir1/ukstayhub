@@ -62,7 +62,7 @@ function valueAfterLabel(text, label, expression) {
 async function lookupFinstat(ico, signal) {
   const response = await fetch(`https://www.finstat.sk/${encodeURIComponent(ico)}`, {
     signal,
-    headers: { "User-Agent": "Putko company-data lookup/1.0", Accept: "text/html" },
+    headers: { "User-Agent": "UK Stay Hub company-data lookup/1.0", Accept: "text/html" },
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const text = htmlText(await response.text());

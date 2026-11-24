@@ -187,14 +187,14 @@ const reservationSchema = new mongoose.Schema({
   hostAmountCents: { type: Number },
   // Was read from the document but never declared, so it was always undefined
   // and call sites fell back to differing hardcoded currencies.
-  currency: { type: String, default: "eur", lowercase: true },
+  currency: { type: String, default: "gbp", lowercase: true },
   payoutStatus: {
     type: String,
     enum: ["pending", "released", "failed"],
     default: "pending"
   },
   transferId: { type: String }, // store Stripe transfer ID
-  language: { type: String, default: "sk" }, // User's preferred language
+  language: { type: String, default: "en" }, // User's preferred language
 
   // --- Cancellation policy snapshot ---
   // Copied from the listing when the booking is created, and never re-read from

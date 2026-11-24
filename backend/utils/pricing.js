@@ -36,6 +36,7 @@
 // produce a total the guest never saw.
 
 import { calendarDateUtc } from "./timezone.js";
+import { formatCents } from "./money.js";
 
 /**
  * The calendar day a value represents, as UTC midnight.
@@ -347,18 +348,17 @@ export function paidExtrasQuote(listing, selected, nights) {
 }
 
 /**
- * A reservation's extras as one line for emails: "Hot Tub €30/night · €120, Sauna €50/stay".
+ * A reservation's extras as one line for emails: "Hot Tub £30/night · £120, Sauna £50/stay".
  * Empty string when there are none.
  */
-export function extrasSummary(extras, lang = "sk") {
-  const en = lang === "en";
-  const euros = (cents) => `€${((Number(cents) || 0) / 100).toFixed(2).replace(/\.00$/, "")}`;
+export function extrasSummary(extras, currency) {
+  const price = (cents) => formatCents(cents, currency);
   return (Array.isArray(extras) ? extras : [])
     .map((extra) => {
-      const name = (en ? extra?.name?.en : extra?.name?.sk) || extra?.name?.en || "";
+      const name = extra?.name?.en || extra?.name?.sk || "";
       return extra?.pricing === "per_night"
-        ? `${name} ${euros(extra.priceCents)}/${en ? "night" : "noc"} · ${euros(extra.totalCents)}`
-        : `${name} ${euros(extra?.totalCents)}/${en ? "stay" : "pobyt"}`;
+        ? `${name} ${price(extra.priceCents)}/night · ${price(extra.totalCents)}`
+        : `${name} ${price(extra?.totalCents)}/stay`;
     })
     .join(", ");
 }

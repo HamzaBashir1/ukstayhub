@@ -6,6 +6,7 @@ import Host from "../models/Host.js";
 import Reservation from "../models/Reservation.js";
 import DeletedAccommodation from "../models/DeletedAccommodation.js";
 import DeletedReservation from "../models/DeletedReservation.js";
+import { formatMoney } from "./money.js";
 
 // The transporter is resolved at SEND time, not at import time. Calling it here
 // at module scope ran before the environment was loaded and then cached a
@@ -18,27 +19,27 @@ const sendEmail = async (email, reservation) => {
   const mailOptions = {
     from: MAIL_FROM,
     to: reservation.email,
-    subject: "Zrušenie rezervácie",
+    subject: "Your booking has been cancelled",
     attachments: logoAttachments(),
     html: brandShell({
-      preheader: "Vaša rezervácia bola zrušená — ubytovanie už nie je dostupné.",
-      title: "Rezervácia bola zrušená",
+      preheader: "Your booking has been cancelled — the property is no longer available.",
+      title: "Booking cancelled",
       bodyHtml: `
-        <p style="margin:0 0 14px 0;">Vážený/á <strong>${esc(reservation.name)}</strong>,</p>
+        <p style="margin:0 0 14px 0;">Dear <strong>${esc(reservation.name)}</strong>,</p>
         <p style="margin:0 0 4px 0;">
-          Ľutujeme, ale vaša rezervácia bola zrušená, pretože ubytovanie už nie je dostupné.
+          We're sorry, but your booking has been cancelled because the property is no longer available.
         </p>
         ${section(
-          "Detaily rezervácie",
+          "Booking details",
           detailTable([
-            ["Príchod", new Date(reservation.checkInDate).toLocaleDateString("sk-SK", { timeZone: "UTC" })],
-            ["Odchod", new Date(reservation.checkOutDate).toLocaleDateString("sk-SK", { timeZone: "UTC" })],
-            ["Cena", `€${reservation.totalPrice}`],
-            ["Počet osôb", String(reservation.numberOfPersons)],
-            reservation.phone && ["Telefón", `+${reservation.phone}`],
+            ["Check-in", new Date(reservation.checkInDate).toLocaleDateString("en-GB", { timeZone: "UTC" })],
+            ["Check-out", new Date(reservation.checkOutDate).toLocaleDateString("en-GB", { timeZone: "UTC" })],
+            ["Price", formatMoney(reservation.totalPrice, reservation.currency)],
+            ["Guests", String(reservation.numberOfPersons)],
+            reservation.phone && ["Phone", `+${reservation.phone}`],
           ])
         )}
-        ${callout("Ospravedlňujeme sa za nepríjemnosti. Ak máte otázky, neváhajte nás kontaktovať.")}`,
+        ${callout("We apologise for the inconvenience. If you have any questions, please get in touch.")}`,
     }),
   };
 

@@ -292,6 +292,11 @@ localTaxPerPersonNight: { type: Number, default: 0 },
 resetPasswordToken: { type: String },
 resetPasswordExpires: { type: Date },
 isVerified: { type: Boolean, default: false },
+  // Email verification code (hashed). See utils/emailVerificationCode.js.
+  emailVerificationCode: { type: String, select: false },
+  emailVerificationExpires: { type: Date, select: false },
+  emailVerificationAttempts: { type: Number, default: 0, select: false },
+  emailVerificationSentAt: { type: Date, select: false },
 }, { timestamps: true });
 
 // Fields required before Putko can raise a compliant Slovak invoice for its fee.

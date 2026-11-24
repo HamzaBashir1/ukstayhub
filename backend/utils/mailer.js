@@ -44,7 +44,7 @@ export const MAIL_FROM = '"UK Stay Hub Support" <support@ukstayhub.co.uk>';
 export async function alertAdmin(subject, details = {}) {
   const body = `
     <div style="font-family: Arial, sans-serif; color: #333;">
-      <h2 style="color:#c0392b;">Putko alert: ${subject}</h2>
+      <h2 style="color:#c0392b;">UK Stay Hub alert: ${subject}</h2>
       <pre style="background:#f6f6f6;padding:12px;border-radius:6px;white-space:pre-wrap;">${
         typeof details === "string" ? details : JSON.stringify(details, null, 2)
       }</pre>
@@ -57,7 +57,7 @@ export async function alertAdmin(subject, details = {}) {
     await getTransporter().sendMail({
       from: MAIL_FROM,
       to: ADMIN_ALERT_EMAIL,
-      subject: `[Putko] ${subject}`,
+      subject: `[UK Stay Hub] ${subject}`,
       html: body,
     });
   } catch (err) {

@@ -53,7 +53,7 @@ const InvoiceSchema = new mongoose.Schema(
 
     currency: {
       type: String,
-      default: "eur",
+      default: "gbp",
       lowercase: true,
     },
 

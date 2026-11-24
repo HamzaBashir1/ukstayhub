@@ -1,6 +1,6 @@
 import express from 'express';
 import passport from '../Controllers/passport.js';
-import { register, login, requestPasswordReset, resetPassword, verifyEmail, changePassword } from '../Controllers/authController.js';
+import { register, login, requestPasswordReset, resetPassword, verifyEmail, verifyEmailCode, resendVerificationCode, changePassword } from '../Controllers/authController.js';
 import { switchAccountMode, getAvailableModes } from '../Controllers/AccountModeController.js';
 import { authenticate } from '../auth/verifyToken.js';
 
@@ -11,7 +11,10 @@ router.post('/register', register);
 router.post('/login', login);
 router.post('/password-reset-request', requestPasswordReset); // New route
 router.post('/reset-password', resetPassword); // New route
+// Old link-based verification, kept so links already sent still work.
 router.get('/verify-email/:role/:token', verifyEmail);
+router.post('/verify-email-code', verifyEmailCode);
+router.post('/resend-verification-code', resendVerificationCode);
 router.post("/change-password", changePassword);
 
 // Traveller <-> host mode. Both require a valid session for the account being
@@ -27,7 +30,7 @@ router.get('/google', passport.authenticate('google', {
 
 router.get('/google/callback', passport.authenticate('google'), (req, res) => {
   // Successful authentication
-  res.redirect('https://www.putko.sk/host');
+  res.redirect('https://ukstayhub.co.uk/host');
 });
 
 // Logout route

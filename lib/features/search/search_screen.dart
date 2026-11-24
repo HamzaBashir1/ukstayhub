@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -485,16 +486,8 @@ class _MapButton extends StatelessWidget {
 
 // ───────────────────────────── HeroSection ─────────────────────────────
 
-/// "4 700" – the sk-SK thousands separator (a no-break space).
-String _fmtNum(int n) {
-  final s = n.toString();
-  final b = StringBuffer();
-  for (var i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 == 0) b.write(' ');
-    b.write(s[i]);
-  }
-  return b.toString();
-}
+/// "4,700" – British English thousands separator.
+String _fmtNum(int n) => NumberFormat.decimalPattern('en_GB').format(n);
 
 class _HeroStrip extends ConsumerWidget {
   const _HeroStrip({required this.total, this.totalReviews, this.averageRating});

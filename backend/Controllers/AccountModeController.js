@@ -55,24 +55,9 @@ const messages = {
       "The other account with this email address has not verified its email yet.",
     serverError: "Could not switch mode. Please try again.",
   },
-  sk: {
-    modeInvalid: 'Režim musí byť "guest" alebo "host".',
-    alreadyInMode: "V tomto režime už ste.",
-    accountMissing: "Váš aktuálny účet sa nepodarilo nájsť.",
-    noEmail: "Tento účet nemá e-mailovú adresu na spárovanie.",
-    sourceUnverified:
-      "Pred prepnutím režimu si overte e-mailovú adresu aktuálneho účtu.",
-    noCounterpartGuest:
-      "Túto e-mailovú adresu zatiaľ nepoužíva žiadny účet cestovateľa. Zaregistrujte sa ako cestovateľ.",
-    noCounterpartHost:
-      "Túto e-mailovú adresu zatiaľ nepoužíva žiadny účet hostiteľa. Zaregistrujte sa ako hostiteľ.",
-    counterpartUnverified:
-      "Druhý účet s touto e-mailovou adresou ešte nemá overený e-mail.",
-    serverError: "Režim sa nepodarilo prepnúť. Skúste to znova.",
-  },
 };
 
-const t = (req) => messages[req.body?.lang === "en" ? "en" : "sk"];
+const t = () => messages.en;
 
 /** Case-insensitive but otherwise exact — no plus-address folding. */
 const normaliseEmail = (email) =>

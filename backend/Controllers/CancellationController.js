@@ -16,6 +16,8 @@ import {
   releaseCalendarForReservation,
   resolveHostForReservation,
 } from "./PaymentController.js";
+import { formatCents } from "../utils/money.js";
+import { DEFAULT_CURRENCY } from "../config/payments.js";
 
 /**
  * GET /api/cancellation/preview/:reservationId
@@ -61,7 +63,7 @@ export const previewCancellation = async (req, res) => {
       hoursUntilCheckIn: outcome.hoursUntilCheckIn,
       totalPaidCents: reservation.grossCents(),
       isPaid,
-      currency: reservation.currency || "eur",
+      currency: reservation.currency || DEFAULT_CURRENCY,
       alreadyPaidOut: Boolean(reservation.transferId),
     });
   } catch (err) {
@@ -277,10 +279,11 @@ async function sendCancellationEmails(reservation, cancelledBy, refundCents) {
 
     const accommodation = populated?.accommodationId;
     const host = accommodation?.userId;
-    const lang = reservation.language === "en" ? "en" : "sk";
+    // Emails are always sent in English.
+    const lang = "en";
     // Which unit was cancelled, on a listing split into units; empty otherwise.
     const unitSuffix = reservation.unitName ? ` · ${reservation.unitName}` : "";
-    const money = (c) => `€${(c / 100).toFixed(2)}`;
+    const money = (c) => formatCents(c, reservation.currency);
 
     const t = {
       en: {
@@ -289,7 +292,7 @@ async function sendCancellationEmails(reservation, cancelledBy, refundCents) {
         byWhom: {
           guest: "You cancelled this booking.",
           host: "The host cancelled this booking.",
-          admin: "This booking was cancelled by Putko support.",
+          admin: "This booking was cancelled by UK Stay Hub support.",
         },
         refundLine:
           refundCents > 0
@@ -298,35 +301,18 @@ async function sendCancellationEmails(reservation, cancelledBy, refundCents) {
         subjectHost: `Booking cancelled: ${accommodation?.name || ""}${unitSuffix}`,
         titleHost: "A booking was cancelled",
         hostLine: "The dates have been released and are bookable again.",
-        regards: "Best regards,<br/><strong>The Putko Team</strong>",
-      },
-      sk: {
-        subjectGuest: `Rezervácia zrušená: ${accommodation?.name || ""}${unitSuffix}`,
-        titleGuest: "Vaša rezervácia bola zrušená",
-        byWhom: {
-          guest: "Túto rezerváciu ste zrušili vy.",
-          host: "Túto rezerváciu zrušil hostiteľ.",
-          admin: "Túto rezerváciu zrušila podpora Putko.",
-        },
-        refundLine:
-          refundCents > 0
-            ? `Vrátenie platby vo výške ${money(refundCents)} je na ceste späť na váš pôvodný platobný prostriedok. Bankám to zvyčajne trvá 5–10 pracovných dní.`
-            : "Podľa storno podmienok, s ktorými ste súhlasili pri rezervácii, vám nevzniká nárok na vrátenie platby.",
-        subjectHost: `Rezervácia zrušená: ${accommodation?.name || ""}${unitSuffix}`,
-        titleHost: "Rezervácia bola zrušená",
-        hostLine: "Termíny boli uvoľnené a sú znova dostupné na rezerváciu.",
-        regards: "S pozdravom,<br/><strong>Tím Putko</strong>",
+        regards: "Best regards,<br/><strong>The UK Stay Hub Team</strong>",
       },
     }[lang];
 
     // The stay, so a host with several bookings knows which one was cancelled
     // — the old message named only the property, which is not enough.
     const day = (d) =>
-      d ? new Date(d).toLocaleDateString(lang === "en" ? "en-GB" : "sk-SK", { timeZone: "UTC" }) : "";
+      d ? new Date(d).toLocaleDateString("en-GB", { timeZone: "UTC" }) : "";
     const stay = detailTable([
-      accommodation?.name && [lang === "en" ? "Accommodation" : "Ubytovanie", accommodation.name],
-      reservation.unitName && [lang === "en" ? "Unit" : "Jednotka", reservation.unitName],
-      [lang === "en" ? "Dates" : "Termín", `${day(reservation.checkInDate)} – ${day(reservation.checkOutDate)}`],
+      accommodation?.name && ["Accommodation", accommodation.name],
+      reservation.unitName && ["Unit", reservation.unitName],
+      ["Dates", `${day(reservation.checkInDate)} – ${day(reservation.checkOutDate)}`],
     ]);
 
     const transporter = getTransporter();

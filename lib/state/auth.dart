@@ -52,7 +52,14 @@ class AuthController extends Notifier<AuthState> {
     return asBool(r['mustChangePassword']);
   }
 
-  Future<void> register(Json body) => authRepo.register(body);
+  Future<Json> register(Json body) => authRepo.register(body);
+
+  /// Verifies the emailed code and signs in. Returns `mustChangePassword`.
+  Future<bool> verifyEmailCode(String email, String code, {String? role, required String lang}) async {
+    final r = await authRepo.verifyEmailCode(email, code, role: role, lang: lang);
+    await _apply(asString(r['token']), asString(r['role'], 'guest'), asMap(r['data']));
+    return asBool(r['mustChangePassword']);
+  }
 
   /// Traveller and host are separate accounts linked by a verified email; the
   /// server issues a token for the other side (AuthContext.requestModeSwitch).

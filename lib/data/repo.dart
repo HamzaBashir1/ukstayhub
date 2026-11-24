@@ -147,6 +147,13 @@ class AuthRepo {
 
   Future<Json> register(Json body) async => asMap(await api.post('/auth/register', body: body));
 
+  /// Confirms the 6-digit code emailed at registration; returns a session like [login].
+  Future<Json> verifyEmailCode(String email, String code, {String? role, required String lang}) async =>
+      asMap(await api.post('/auth/verify-email-code', body: {'email': email.trim(), 'code': code.trim(), 'role': role, 'lang': lang}));
+
+  Future<void> resendVerificationCode(String email, String lang) =>
+      api.post('/auth/resend-verification-code', body: {'email': email.trim(), 'lang': lang});
+
   Future<void> requestPasswordReset(String email, String lang) =>
       api.post('/auth/password-reset-request', body: {'email': email.trim(), 'lang': lang});
 
