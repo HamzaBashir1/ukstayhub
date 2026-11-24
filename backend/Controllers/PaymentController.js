@@ -143,7 +143,10 @@ export const buildCheckoutSession = async (reservation, context = {}) => {
   // PUBLISHED when the session is created and its host's account restricted by
   // the time the guest pays, and a payment link mailed days ago outlives any
   // check made when it was issued.
-  {
+  // A host accepting a request may do so before connecting Stripe
+  // (`skipPayoutGate`); the guest's money stays on the platform and the payout
+  // step refuses with `not_onboarded` until the host connects.
+  if (!context.skipPayoutGate) {
     const { host, conflict } = await resolveHostForReservation(reservation);
     if (conflict || !isHostBookingReady(host)) {
       const err = new Error(

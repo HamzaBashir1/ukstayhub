@@ -6,7 +6,7 @@ import Reservation from "../models/Reservation.js";
 import Host from "../models/Host.js";
 import Invoice from "../models/Invoice.js";
 import { alertAdmin } from "./mailer.js";
-import { createSuperfakturaInvoice, deliverInvoice } from "./superfaktura.js";
+import { createStripeInvoice, deliverInvoice } from "./stripeInvoices.js";
 import { logExternalCall } from "./auditLog.js";
 import { refreshHostVatRegistration } from "./companyLookup.js";
 import {
@@ -219,7 +219,7 @@ async function invoiceJobForPeriod(period) {
     if (invoiceDocument) {
       summary.retried++;
       invoiceDocument.failureReason = undefined;
-      invoiceDocument.superfakturaResponse = undefined;
+      invoiceDocument.providerResponse = undefined;
       invoiceDocument.status = "draft";
       invoiceDocument.description = buildInvoiceDescription(yearMonth);
       invoiceDocument.hostSnapshot = buildHostSnapshot(host);
@@ -243,16 +243,16 @@ async function invoiceJobForPeriod(period) {
     }
 
     try {
-      // Dry-run: leave as draft, do not call SuperFaktúra
+      // Dry-run: leave as draft, do not call Stripe
       await refreshHostVatRegistration(host);
       invoiceDocument.hostSnapshot = buildHostSnapshot(host);
 
       if (isDryRun()) {
         invoiceDocument.status = "draft";
-        invoiceDocument.superfakturaResponse = { dryRun: true, at: new Date().toISOString() };
+        invoiceDocument.providerResponse = { dryRun: true, at: new Date().toISOString() };
         await saveInvoice(invoiceDocument);
         summary.created++;
-        logExternalCall("superfaktura", "invoices.create", {
+        logExternalCall("stripe", "invoices.create", {
           hostId,
           period: yearMonth,
           grossAmountCents: invoiceDocument.grossAmountCents,
@@ -261,7 +261,7 @@ async function invoiceJobForPeriod(period) {
         continue;
       }
 
-      // Claim the invoice before calling SuperFaktúra
+      // Claim the invoice before calling Stripe
       invoiceDocument.status = "creating";
       const claimed = await saveInvoice(invoiceDocument);
       if (!claimed) {
@@ -269,8 +269,8 @@ async function invoiceJobForPeriod(period) {
         continue;
       }
 
-      // Create real invoice in SuperFaktúra
-      const { response, emailRequested, meta } = await createSuperfakturaInvoice({
+      // Create real invoice in Stripe
+      const { response, emailRequested, meta } = await createStripeInvoice({
         host,
         invoiceDocument,
       });
@@ -279,7 +279,7 @@ async function invoiceJobForPeriod(period) {
       invoiceDocument.invoiceNumber = meta.number || undefined;
       invoiceDocument.externalUrl = meta.pdfUrl || undefined;
       invoiceDocument.pdfUrl = meta.pdfUrl || undefined;
-      invoiceDocument.superfakturaResponse = response;
+      invoiceDocument.providerResponse = response;
       invoiceDocument.status = "issued";
       summary.created++;
 
@@ -307,13 +307,13 @@ async function invoiceJobForPeriod(period) {
       await saveInvoice(invoiceDocument);
     } catch (error) {
       invoiceDocument.status = "failed";
-      invoiceDocument.failureReason = error?.message || "superfaktura_error";
-      invoiceDocument.superfakturaResponse = {
+      invoiceDocument.failureReason = error?.message || "stripe_invoice_error";
+      invoiceDocument.providerResponse = {
         error: error?.response?.data || error?.providerResponse || error?.message || String(error),
       };
       await saveInvoice(invoiceDocument);
       summary.failed++;
-      await alertAdmin("SuperFaktura invoice creation failed", {
+      await alertAdmin("Stripe invoice creation failed", {
         hostId: host._id.toString(),
         periodLabel,
         error: error?.message || String(error),

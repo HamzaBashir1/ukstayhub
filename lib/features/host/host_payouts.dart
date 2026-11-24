@@ -74,6 +74,7 @@ class _HostPayoutsScreenState extends ConsumerState<HostPayoutsScreen> {
       onRefresh: () async {
         ref.invalidate(hostOwnedProvider);
         ref.invalidate(hostStripeAccountsPanelProvider);
+        ref.invalidate(hostInvoicesProvider);
         await _refreshKey.currentState?.reload();
       },
       child: ListView(
@@ -100,6 +101,8 @@ class _HostPayoutsScreenState extends ConsumerState<HostPayoutsScreen> {
                   const SizedBox(height: 24),
                   _Earnings(key: _refreshKey, accounts: _accounts, pad: pad),
                   const SizedBox(height: 24),
+                  Container(padding: pad, decoration: _card(), child: const _Invoices()),
+                  const SizedBox(height: 24),
                   Container(padding: pad, decoration: _card(), child: _ListingStatus(owned: owned, accounts: _accounts)),
                 ]),
               ),
@@ -108,6 +111,61 @@ class _HostPayoutsScreenState extends ConsumerState<HostPayoutsScreen> {
         ],
       ),
     );
+  }
+}
+
+// ───────────────────────────── Invoices (monthly platform-fee invoices) ─────────────────────────────
+final hostInvoicesProvider = FutureProvider.autoDispose<List<Json>>((ref) async {
+  final id = ref.watch(authProvider).id;
+  if (id.isEmpty) return const [];
+  final all = await hostRepo.invoices(id);
+  // Drafts and failed runs have no document to download yet.
+  return all.where((i) => asString(i['pdfUrl']).isNotEmpty).toList();
+});
+
+class _Invoices extends ConsumerWidget {
+  const _Invoices();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
+    final invoices = ref.watch(hostInvoicesProvider);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(t.pick('Faktúry', 'Invoices'), style: AppText.inter(size: 18, weight: FontWeight.w700, color: _forest)),
+      const SizedBox(height: 4),
+      Text(t.pick('Mesačné faktúry za poplatok platformy. Poplatok sa odpočítal pri jednotlivých rezerváciách.', 'Monthly invoices for the platform fee. The fee was already deducted from each booking.'),
+          style: AppText.inter(size: 13, color: AppColors.neutral500, height: 1.5)),
+      const SizedBox(height: 12),
+      invoices.when(
+        loading: () => const Padding(padding: EdgeInsets.all(8), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+        error: (_, __) => Text(t.pick('Faktúry sa nepodarilo načítať.', 'Could not load invoices.'), style: AppText.inter(size: 13, color: const Color(0xFFB91C1C))),
+        data: (list) => list.isEmpty
+            ? Text(t.pick('Zatiaľ žiadne faktúry.', 'No invoices yet.'), style: AppText.inter(size: 13, color: AppColors.neutral500))
+            : Column(children: [
+                for (final i in list)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.neutral200)),
+                      child: Row(children: [
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('${asInt(i['invoiceMonth']).toString().padLeft(2, '0')}/${asInt(i['invoiceYear'])}  ·  ${asString(i['invoiceNumber'])}', style: AppText.inter(size: 14, weight: FontWeight.w700, color: _forest)),
+                            Text(_money(asInt(i['grossAmountCents']), asString(i['currency'], 'eur'), t), style: AppText.inter(size: 12, color: AppColors.neutral500)),
+                          ]),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => launchUrl(Uri.parse(asString(i['pdfUrl'])), mode: LaunchMode.externalApplication),
+                          icon: const Icon(Icons.download_outlined, size: 16),
+                          label: Text(t.pick('Stiahnuť', 'Download')),
+                        ),
+                      ]),
+                    ),
+                  ),
+              ]),
+      ),
+    ]);
   }
 }
 

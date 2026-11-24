@@ -30,7 +30,6 @@ import { checkStayLength, quoteStay, priceMismatch, extrasSummary } from "../uti
 import { applyUnit, findUnit, hasUnits } from "../utils/listingUnits.js";
 import { calendarDateUtc, businessMidnightUtc } from "../utils/timezone.js";
 import Host from "../models/Host.js";
-import { isHostBookingReady } from "../utils/listingGating.js";
 import {
   bookingModeForHost,
   requestPurposeForHost,
@@ -1101,16 +1100,8 @@ export const approveBookingRequest = async (req, res) => {
       return res.status(409).json({ error: "Already paid", code: "already_paid" });
     }
 
-    const host = await Host.findById(reservation.accommodationProvider);
-    if (!isHostBookingReady(host)) {
-      // 409, not 403: the host is who they say they are, they simply cannot be
-      // paid yet. The client turns this into "connect your payout account".
-      return res.status(409).json({
-        error:
-          "Connect a payout account before accepting — there would be nowhere to send the money.",
-        code: "host_not_payout_ready",
-      });
-    }
+    // No Stripe-connected check here by design: a host may accept before
+    // connecting payouts. The payout step refuses (`not_onboarded`) until they do.
 
     // Accepting mails a payment link; it does not take the nights off the
     // market. The guest may open that link hours later or never, and holding
@@ -1131,6 +1122,7 @@ export const approveBookingRequest = async (req, res) => {
         // checkout assumes.
         expiresInHours: PAYMENT_LINK_HOURS,
         reserveDates: false,
+        skipPayoutGate: true,
       }));
     } catch (err) {
       if (err.code === "dates_unavailable") {

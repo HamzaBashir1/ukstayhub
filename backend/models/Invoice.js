@@ -113,6 +113,7 @@ const InvoiceSchema = new mongoose.Schema(
       icDph: String,
     },
 
+    providerResponse: mongoose.Schema.Types.Mixed, // Stripe invoice (or error); older rows hold SuperFaktúra data under superfakturaResponse
     superfakturaResponse: mongoose.Schema.Types.Mixed,
   },
   {

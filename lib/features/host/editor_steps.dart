@@ -122,10 +122,6 @@ Widget buildBasicsStep({required Json data, required Map<String, String> errors,
         lines: 3,
         placeholder: t.pick('napr. v zime strmý prístup, na 3. poschodie nevedie výťah', 'e.g. steep access road in winter, no lift to the 3rd floor'),
         hint: t.pick('Zobrazí sa výrazne v ponuke. Použite ho na veci, ktoré by hosťa pri príchode prekvapili.', 'Shown prominently on the listing. Use it for things that would otherwise surprise someone on arrival.')),
-    text('nameEn', t.pick('Názov po anglicky (voliteľné)', 'Name in English (optional)'),
-        hint: t.pick('Zobrazí sa na anglickej stránke (ukstayhub.co.uk). Ak ostane prázdne, zobrazí sa slovenský názov.', 'Shown on ukstayhub.co.uk. Leave empty to use the main name.')),
-    text('descriptionEn', t.pick('Popis po anglicky (voliteľné)', 'Description in English (optional)'), lines: 6),
-    text('specialNoteEn', t.pick('Čo musia hostia vedieť, po anglicky (voliteľné)', 'Anything guests must know, in English (optional)'), lines: 3),
     text('virtualTourUrl', t.pick('Odkaz na virtuálnu prehliadku (voliteľné)', 'Virtual tour link (optional)'), placeholder: 'https://', keyboard: TextInputType.url),
   ]);
 }

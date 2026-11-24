@@ -46,6 +46,13 @@ class DestSuggestion {
       };
 }
 
+/// Basic UK cities always offered, so suggestions are never empty or sparse
+/// when the live catalog has few stays. Catalog cities (with counts) rank first.
+const _basicUkCities = [
+  'London', 'Manchester', 'Birmingham', 'Edinburgh', 'Glasgow', 'Liverpool', 'Bristol', 'Leeds', 'Cardiff', 'Oxford',
+  'Cambridge', 'Brighton', 'Bath', 'York', 'Newcastle', 'Nottingham', 'Sheffield', 'Belfast', 'Southampton', 'Aberdeen',
+];
+
 /// searchNormalization.mergeDestinationSuggestions: with no text the six
 /// biggest cities/regions; otherwise up to eight best matches, stays last.
 List<DestSuggestion> destinationSuggestions(
@@ -72,11 +79,13 @@ List<DestSuggestion> destinationSuggestions(
   }
   final regionNames = regs.map((e) => searchKey(e.label)).toSet();
   final distinct = cities.where((c) => !regionNames.contains(searchKey(c.label))).toList();
+  final known = {...distinct.map((c) => searchKey(c.label)), ...regionNames};
+  final basics = [for (final n in _basicUkCities) if (!known.contains(searchKey(n))) DestSuggestion('city', n)];
 
   int byCount(DestSuggestion a, DestSuggestion b) => b.count != a.count ? b.count.compareTo(a.count) : a.label.compareTo(b.label);
 
   final key = searchKey(query);
-  if (key.isEmpty) return ([...distinct, ...regs]..sort(byCount)).take(6).toList();
+  if (key.isEmpty) return [...([...distinct, ...regs]..sort(byCount)), ...basics].take(6).toList();
 
   int score(DestSuggestion s) {
     final title = searchKey(s.label);
@@ -104,7 +113,7 @@ List<DestSuggestion> destinationSuggestions(
 
   final seen = <String>{};
   final ranked = <(DestSuggestion, int)>[];
-  for (final s in [...distinct, ...regs, for (final n in stays) DestSuggestion('name', n)]) {
+  for (final s in [...distinct, ...regs, ...basics, for (final n in stays) DestSuggestion('name', n)]) {
     if (!seen.add('${s.type}:${searchKey(s.label)}')) continue;
     ranked.add((s, score(s)));
   }

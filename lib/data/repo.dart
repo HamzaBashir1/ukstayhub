@@ -397,6 +397,12 @@ class HostRepo {
     return asString(r['onboardingUrl']);
   }
 
+  /// The host's own monthly platform-fee invoices (newest first).
+  Future<List<Json>> invoices(String hostId) async {
+    final r = await api.get('/invoices/host/${Uri.encodeComponent(hostId)}');
+    return asMapList(r);
+  }
+
   /// Reopens Stripe onboarding for one account (a fresh link every time).
   Future<String> stripeAccountLink(String hostId, String accountId) async =>
       asString(asMap(await api.post('/payments/host/account-link', body: {'hostId': hostId, 'accountId': accountId, 'returnTo': '/host/payouts'}))['onboardingUrl']);

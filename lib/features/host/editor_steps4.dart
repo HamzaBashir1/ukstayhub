@@ -455,8 +455,8 @@ class _ReadinessStepState extends ConsumerState<_ReadinessStep> {
             decoration: BoxDecoration(
               color: active ? _teal.withValues(alpha: 0.06) : Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: active ? _teal : AppColors.neutral200),
-              boxShadow: active ? [const BoxShadow(color: _teal, spreadRadius: 0.5)] : null,
+              // Not a BoxShadow: it is painted under the translucent fill and showed through as a solid teal card.
+              border: Border.all(color: active ? _teal : AppColors.neutral200, width: active ? 1.5 : 1),
             ),
             child: Row(children: [
               Container(

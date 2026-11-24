@@ -21,7 +21,7 @@ import { join } from "node:path";
 const DEBUG_FILE = process.env.AUDIT_LOG_FILE || join(tmpdir(), "putko-audit.log");
 
 /**
- * @param {string} channel   'stripe' | 'superfaktura' | ...
+ * @param {string} channel   'stripe' | ...
  * @param {string} operation e.g. 'invoices.create'
  * @param {object} context   identifiers only — ids, amounts, periods
  * @param {'ok'|'error'} outcome

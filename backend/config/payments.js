@@ -162,12 +162,6 @@ export function splitGrossAmountCents(grossAmountCents, vatRatePercent = VAT_RAT
 export const INVOICE_GENERATION_CRON = process.env.INVOICE_GENERATION_CRON || "0 3 1 * *";
 export const INVOICE_GENERATION_ENABLED = bool(process.env.INVOICE_GENERATION_ENABLED, true);
 export const INVOICE_DUE_DAYS = num(process.env.INVOICE_DUE_DAYS, 14);
-export const SUPERFAKTURA_API_URL = process.env.SUPERFAKTURA_API_URL || process.env.SUPERFAKTURA_ENDPOINT || "https://moja.superfaktura.sk/invoices/create";
-// Support both the new token-based API and the legacy SFAPI header credentials.
-export const SUPERFAKTURA_AUTH_TOKEN = process.env.SUPERFAKTURA_AUTH_TOKEN || process.env.SUPERFAKTURA_API_KEY || "";
-export const SUPERFAKTURA_AUTH_EMAIL = process.env.SUPERFAKTURA_AUTH_EMAIL || process.env.SUPERFAKTURA_EMAIL || "";
-export const SUPERFAKTURA_AUTH_KEY = process.env.SUPERFAKTURA_AUTH_KEY || process.env.SUPERFAKTURA_API_KEY_SECRET || "";
-export const SUPERFAKTURA_COMPANY_ID = process.env.SUPERFAKTURA_COMPANY_ID || process.env.SUPERFAKTURA_COMPANY || process.env.SUPERFAKTURA_COMPANY_ID || "";
 
 export const INVOICE_DRY_RUN = bool(process.env.INVOICE_DRY_RUN, false);
 
@@ -179,7 +173,6 @@ export const INVOICE_EMAIL_ENABLED = bool(process.env.INVOICE_EMAIL_ENABLED, tru
 
 // Konštantný symbol for a service invoice. 0308 = payment for services by
 // transfer, which is what an intermediary fee is.
-export const INVOICE_CONSTANT_SYMBOL = process.env.INVOICE_CONSTANT_SYMBOL || "0308";
 
 // TEST ONLY — redirect every invoice email to this address instead of the host.
 //
