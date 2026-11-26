@@ -1,5 +1,4 @@
 import express from 'express';
-import passport from '../Controllers/passport.js';
 import { register, login, requestPasswordReset, resetPassword, verifyEmail, verifyEmailCode, resendVerificationCode, changePassword } from '../Controllers/authController.js';
 import { switchAccountMode, getAvailableModes } from '../Controllers/AccountModeController.js';
 import { authenticate } from '../auth/verifyToken.js';
@@ -22,21 +21,5 @@ router.post("/change-password", changePassword);
 // in the request.
 router.get('/mode/available', authenticate, getAvailableModes);
 router.post('/mode', authenticate, switchAccountMode);
-
-// Google OAuth routes
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email']
-}));
-
-router.get('/google/callback', passport.authenticate('google'), (req, res) => {
-  // Successful authentication
-  res.redirect('https://ukstayhub.co.uk/host');
-});
-
-// Logout route
-router.get('/logout', (req, res) => {
-  req.logout();
-  res.redirect('/');
-});
 
 export default router;

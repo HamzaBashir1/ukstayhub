@@ -9,8 +9,6 @@ import cookieParser from "cookie-parser";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
-import passport from './Controllers/passport.js';
-import session from 'express-session';
 import { Server } from "socket.io";
 import http from 'http';
 import authRoutes from './Routes/auth.js';
@@ -94,16 +92,6 @@ const io = new Server(server, {
     credentials: true,
   },
 });
-
-// Session and passport configuration
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false
-}));
-
-app.use(passport.initialize());
-app.use(passport.session());
 
 // Database connection
 const connectDB = async () => {
