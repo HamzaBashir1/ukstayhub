@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:flutter/services.dart' show MissingPluginException, PlatformException;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:go_router/go_router.dart';
@@ -43,11 +44,42 @@ Future<void> openStripeOnboarding(BuildContext context, String url, {String? ret
       options: const FlutterWebAuth2Options(preferEphemeral: true),
     );
     target = _targetFor(Uri.parse(result), safeReturn) ?? fallback;
-  } catch (_) {
-    // Closed by the host (or the session failed): still show the result page,
+  } on PlatformException catch (e) {
+    if (e.code != 'CANCELED') {
+      // The auth session could not start: use the plain in-app browser.
+      debugPrint('Stripe auth session failed (${e.code}); using in-app browser');
+      return _openInAppBrowser(router, url, fallback);
+    }
+    // CANCELED: the host closed the browser. Still show the result page,
     // which re-checks the account with Stripe.
+  } on MissingPluginException {
+    // A build without the native plugin (hot reload after adding it). Never
+    // leave the host stuck: fall back to the plain in-app browser.
+    debugPrint('flutter_web_auth_2 not in this build – rebuild the app; using in-app browser');
+    return _openInAppBrowser(router, url, fallback);
   }
   router.go(target);
+}
+
+/// Fallback: Stripe in the system in-app browser; when the host comes back to
+/// the app (closed the sheet, or the return page opened ukstayhub://…), show
+/// the result page.
+Future<void> _openInAppBrowser(GoRouter router, String url, String target) async {
+  final opened = await launchUrl(Uri.parse(url), mode: LaunchMode.inAppBrowserView);
+  if (!opened) return;
+  var left = false;
+  late final AppLifecycleListener listener;
+  listener = AppLifecycleListener(
+    onStateChange: (state) {
+      if (state == AppLifecycleState.inactive || state == AppLifecycleState.hidden || state == AppLifecycleState.paused) {
+        left = true;
+      } else if (state == AppLifecycleState.resumed && left) {
+        listener.dispose();
+        closeInAppWebView().catchError((_) {});
+        router.go(target);
+      }
+    },
+  );
 }
 
 /// ukstayhub://stripe-return/host/onboard/success?account=…&returnTo=…
