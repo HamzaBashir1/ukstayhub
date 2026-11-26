@@ -31,7 +31,7 @@ import {
   heroImage,
   logoAttachments,
 } from "../utils/emailLayout.js";
-import { hoursSinceCheckIn } from "../utils/timezone.js";
+import { hoursSinceCheckIn, toCalendarDateString } from "../utils/timezone.js";
 import { getTiersSnapshot, getPolicyNameSnapshot } from "../utils/cancellationPolicy.js";
 import { recordReservationForDac7 } from "../utils/dac7.js";
 import { holdDates, releaseHold, confirmHold, checkAvailability } from "../utils/calendarHold.js";
@@ -49,7 +49,9 @@ import {
   refreshAllHostStripeAccounts,
   syncListingStatusForHost,
 } from "../utils/hostStripeSync.js";
-import { formatMoney } from "../utils/money.js";
+import { formatMoney, formatCents } from "../utils/money.js";
+import { payLinkUrl, payLinkBase } from "../utils/payLink.js";
+import { sendGuestRequestClosedEmail } from "../utils/requestToBookEmails.js";
 
 // Moved to utils/hostStripeSync.js so the booking gate can call it without
 // closing an import cycle (listingGating -> PaymentController -> listingGating).
@@ -250,8 +252,10 @@ export const buildCheckoutSession = async (reservation, context = {}) => {
         listingId,
       },
     },
-    success_url: `${process.env.CLIENT_SITE_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.CLIENT_SITE_URL}/payment-cancel`,
+    // An EMAILED link (context.returnBase) comes back to this backend's
+    // /pay/:id pages, not the website: those work without the site running,
+    // offer "Open in the app" on a phone, and the in-app WebView catches them.
+    ...returnUrls(reservation, context.returnBase),
   });
 
   logStripeCall("checkout.sessions.create", {
@@ -266,6 +270,18 @@ export const buildCheckoutSession = async (reservation, context = {}) => {
 
   return { session, amountCents };
 };
+
+/** Stripe's return URLs: the website by default, our /pay/:id pages for emailed links. */
+const returnUrls = (reservation, returnBase) =>
+  returnBase
+    ? {
+        success_url: `${returnBase}/pay/${reservation._id}/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${returnBase}/pay/${reservation._id}/cancelled`,
+      }
+    : {
+        success_url: `${process.env.CLIENT_SITE_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.CLIENT_SITE_URL}/payment-cancel`,
+      };
 
 // Create Stripe Checkout Session (guest pays)
 export const createCheckoutSession = async (req, res) => {
@@ -812,14 +828,9 @@ export const createStripeAccountLink = async (req, res) => {
 
     const safeReturn =
       typeof returnTo === "string" && returnTo.startsWith("/") ? returnTo : "";
-    const returnUrl =
-      `${process.env.CLIENT_SITE_URL}/host/onboard/success?account=${accountId}` +
-      (safeReturn ? `&returnTo=${encodeURIComponent(safeReturn)}` : "");
-
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      refresh_url: `${process.env.CLIENT_SITE_URL}/host/onboard/refresh?account=${accountId}`,
-      return_url: returnUrl,
+      ...onboardReturnUrls(req, { accountId, returnTo: safeReturn }),
       type,
     });
 
@@ -1017,13 +1028,9 @@ export const connectAdditionalStripeAccount = async (req, res) => {
 
     // Account Links expire within minutes — always mint a fresh one.
     const safeReturn = typeof returnTo === "string" && returnTo.startsWith("/") ? returnTo : "";
-    const returnUrl = `${process.env.CLIENT_SITE_URL}/host/onboard/success?account=${account.id}` +
-      (safeReturn ? `&returnTo=${encodeURIComponent(safeReturn)}` : "");
-
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-      refresh_url: `${process.env.CLIENT_SITE_URL}/host/onboard/refresh`,
-      return_url: returnUrl,
+      ...onboardReturnUrls(req, { accountId: account.id, returnTo: safeReturn }),
       type: "account_onboarding",
     });
 
@@ -1153,8 +1160,7 @@ export const createHostExpressAccount = async (req, res) => {
     // Account Links expire within minutes — always mint a fresh one, never persist.
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      refresh_url: `${process.env.CLIENT_SITE_URL}/host/onboard/refresh`,
-      return_url: `${process.env.CLIENT_SITE_URL}/host/onboard/success`,
+      ...onboardReturnUrls(req),
       type: "account_onboarding",
     });
 
@@ -1733,6 +1739,12 @@ export const finalizeReservation = async (reservationId) => {
 
     if (confirmed.ok) {
       console.log(`Updated calendar for reservation ${reservationId}`);
+      // These nights are now sold. Any other open request for them — pending,
+      // or accepted with a live payment link — is closed, so nobody else can
+      // pay for the same dates.
+      await closeCompetingRequests(reservation).catch((err) =>
+        console.error(`closeCompetingRequests ${reservationId}:`, err.message)
+      );
     } else {
       console.error(
         `Calendar conflict finalising reservation ${reservationId}: ` +
@@ -2052,13 +2064,19 @@ export const sendPaymentEmail = async (req, res) => {
           hostId: reservation.accommodationProvider?.toString() || "",
         },
       },
-      success_url: `${process.env.CLIENT_SITE_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.CLIENT_SITE_URL}/payment-cancel`,
+      // Emailed link: return to our /pay/:id pages (see returnUrls).
+      ...returnUrls(reservation, payLinkBase(req)),
     });
 
     // Save session ID
     reservation.checkoutSessionId = session.id;
     await reservation.save();
+
+    // Mail our /pay/:id link rather than the raw Stripe URL, so it opens the
+    // app on a phone that has it (see utils/payLink.js).
+    const { accessToken } =
+      (await Reservation.findById(reservation._id).select("+accessToken").lean()) || {};
+    const payUrl = payLinkUrl(req, reservation._id, accessToken);
 
     // Data Preparation for Email
     // The booked unit rides along with the name on a listing split into units.
@@ -2138,7 +2156,7 @@ export const sendPaymentEmail = async (req, res) => {
               [text.totalPrice, formatMoney(reservation.totalPrice, reservation.currency)],
             ])
           )}
-          ${button(session.url, text.buttonText)}
+          ${button(payUrl, text.buttonText)}
           ${callout(text.expires, "warning")}`,
       }),
     };
@@ -2152,3 +2170,288 @@ export const sendPaymentEmail = async (req, res) => {
     res.status(500).json({ error: err.message || "Failed to send payment email" });
   }
 };
+
+/**
+ * Close every other unpaid request-to-book that wants nights this paid booking
+ * now occupies: expire its Stripe session (so the emailed link cannot be paid)
+ * and tell the guest. Without this a second accepted request stayed payable,
+ * and its guest would be charged for dates already sold.
+ */
+export const closeCompetingRequests = async (paid) => {
+  const listingId = paid.accommodationId?._id || paid.accommodationId;
+  // Calendar rows are inclusive of the check-out day (see calendarHold.dayKeys).
+  const rivals = await Reservation.find({
+    _id: { $ne: paid._id },
+    accommodationId: listingId,
+    bookingMode: "request",
+    paymentStatus: { $ne: "paid" },
+    isApproved: { $ne: "cancelled" },
+    checkInDate: { $lte: paid.checkOutDate },
+    checkOutDate: { $gte: paid.checkInDate },
+  });
+  if (!rivals.length) return 0;
+
+  const stripe = getStripe();
+  const listing = await Accommodation.findById(listingId).select("name");
+  let closed = 0;
+
+  for (const r of rivals) {
+    // A listing split into units: another unit's request is unaffected.
+    if (paid.unitId && r.unitId && String(paid.unitId) !== String(r.unitId)) continue;
+
+    if (r.checkoutSessionId) {
+      await stripe.checkout.sessions.expire(r.checkoutSessionId).catch(() => {});
+    }
+    r.isApproved = "cancelled";
+    r.cancelledAt = new Date();
+    r.requestDeclinedAt = new Date();
+    r.cancellationReason = "Dates booked by another guest";
+    await r.save();
+    closed++;
+
+    sendGuestRequestClosedEmail({
+      to: r.email,
+      reservation: r,
+      listingName: listing?.name,
+      reason: "taken",
+    }).catch((err) => console.error(`taken-email ${r._id}:`, err.message));
+  }
+
+  if (closed) console.log(`[calendar] closed ${closed} competing request(s) for paid booking ${paid._id}`);
+  return closed;
+};
+
+/**
+ * Where Stripe sends a host after Connect onboarding.
+ *
+ * The website handles its own /host/onboard/* pages. The mobile app (it sends
+ * `X-Client: app`) has no web page to land on — CLIENT_SITE_URL may not even
+ * be running — so it returns to this backend's /app-return/host/onboard/*
+ * page, which hands the host straight back into the app.
+ */
+/**
+ * True for the mobile app: it sends `X-Client: app`, and its HTTP client
+ * identifies as "Dart/<version> (dart:io)" (covers builds made before the
+ * header existed). Browsers — the website — never send either.
+ */
+const isAppRequest = (req) =>
+  req?.get?.("x-client") === "app" || /^Dart\//.test(req?.get?.("user-agent") || "");
+
+const onboardReturnUrls = (req, { accountId, returnTo } = {}) => {
+  const q = new URLSearchParams();
+  if (accountId) q.set("account", accountId);
+  if (returnTo) q.set("returnTo", returnTo);
+  const qs = q.toString() ? `?${q}` : "";
+  const base =
+    isAppRequest(req)
+      ? `${payLinkBase(req)}/app-return/host/onboard`
+      : `${process.env.CLIENT_SITE_URL}/host/onboard`;
+  return { return_url: `${base}/success${qs}`, refresh_url: `${base}/refresh${qs}` };
+};
+
+// GET /app-return/host/onboard/:kind — Stripe onboarding finished (success) or
+// its link expired (refresh) for a host using the app.
+//
+// Redirects straight to ukstayhub://stripe-return/host/onboard/<kind>. The app
+// runs onboarding in a system auth session (ASWebAuthenticationSession / a
+// Custom Tab via flutter_web_auth_2) that watches for exactly that scheme: the
+// moment it is reached the browser closes itself and the app shows its own
+// /host/onboard/<kind> screen — no "Open in app?" prompt, no page to tap.
+export const hostOnboardAppReturn = (req, res) => {
+  const kind = req.params.kind === "refresh" ? "refresh" : "success";
+  const q = new URLSearchParams();
+  for (const k of ["account", "returnTo"]) if (req.query[k]) q.set(k, String(req.query[k]));
+  res.redirect(302, `ukstayhub://stripe-return/host/onboard/${kind}${q.toString() ? `?${q}` : ""}`);
+};
+
+// ───────────────────────── Emailed payment link (/pay/:id) ─────────────────────────
+
+/**
+ * Where an emailed payment link stands, read from Stripe (never from the
+ * client). Shared by the app's status call and the browser redirect.
+ *
+ *   paid         the booking is paid (reconciled here if the webhook lagged)
+ *   ready        the Stripe session is open; `url` is where to pay
+ *   expired      the link's Stripe session timed out
+ *   unavailable  cancelled, declined, or no payment link was ever issued
+ */
+export const resolvePayLink = async (reservation) => {
+  if (reservation.paymentStatus === "paid") return { state: "paid" };
+  if (reservation.isApproved === "cancelled") return { state: "unavailable" };
+  if (!reservation.checkoutSessionId) return { state: "unavailable" };
+
+  const stripe = getStripe();
+  let session;
+  try {
+    session = await stripe.checkout.sessions.retrieve(reservation.checkoutSessionId);
+  } catch (err) {
+    logStripeCall("checkout.sessions.retrieve", { reservationId: String(reservation._id) }, "error", err);
+    return { state: "unavailable" };
+  }
+
+  if (session.payment_status === "paid") {
+    await applyPaidCheckoutSession(stripe, session, { source: "reconcile" }).catch(() => {});
+    return { state: "paid", sessionId: session.id };
+  }
+  if (session.status === "expired") return { state: "expired" };
+  if (session.status !== "open" || !session.url) return { state: "unavailable" };
+
+  // Someone else may have booked (or be mid-checkout for) these nights since
+  // the link was mailed. Not expired here: a checkout hold can still lapse.
+  // A PAID rival closes this request for good via closeCompetingRequests.
+  const free = await checkAvailability(reservation);
+  if (!free.ok) return { state: "taken" };
+
+  return {
+    state: "ready",
+    url: session.url,
+    sessionId: session.id,
+    expiresAt: session.expires_at ? new Date(session.expires_at * 1000) : reservation.paymentLinkExpiresAt,
+  };
+};
+
+// GET /api/payments/pay-link/:reservationId — the app's view of an emailed link.
+export const getPayLink = async (req, res) => {
+  try {
+    const reservation = req.reservation;
+    const link = await resolvePayLink(reservation);
+    const fresh = await Reservation.findById(reservation._id).populate("accommodationId", "name slug images");
+    res.json({ ...link, reservation: fresh });
+  } catch (err) {
+    console.error("getPayLink error:", err);
+    res.status(500).json({ error: err.message || "Failed to load payment link" });
+  }
+};
+
+const isPhone = (req) => /iphone|ipad|ipod|android/i.test(req.get("user-agent") || "");
+
+/** In-app address for a path, e.g. ukstayhub://app/pay/123 (the app's custom scheme). */
+const appUrl = (path) => `ukstayhub://app${path}`;
+
+const ICONS = {
+  ok: { bg: "#319a81", svg: '<path d="M20 6 9 17l-5-5"/>' },
+  fail: { bg: "#dc2626", svg: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>' },
+  warn: { bg: "#d97706", svg: '<path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/>' },
+  pay: { bg: "#319a81", svg: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/>' },
+};
+const ICON_ALIASES = { "✅": "ok", "❌": "fail", "⚠️": "warn", "⏱️": "warn", "📅": "warn", "↩️": "warn", "💳": "pay" };
+
+/** Same look as the app's result screens: round icon, title, message, details card. */
+const payPage = ({ title, body, icon = "ok", rows, primary, secondary, autoOpen }) => {
+  const ic = ICONS[ICON_ALIASES[icon] || icon] || ICONS.ok;
+  const card = rows?.length
+    ? `<div class="card">${rows
+        .map(([k, v]) => `<div class="row"><span>${esc(k)}</span><b>${esc(v)}</b></div>`)
+        .join("")}</div>`
+    : "";
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} · UK Stay Hub</title>
+<style>*{box-sizing:border-box}body{font-family:-apple-system,"Segoe UI",Roboto,Inter,sans-serif;background:#f8f5ef;color:#1e3e2b;margin:0;padding:48px 16px}
+.w{max-width:560px;margin:0 auto;text-align:center}
+.brand{font-weight:800;color:#319a81;font-size:18px;margin-bottom:32px}
+.ic{width:80px;height:80px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;background:${ic.bg}}
+.ic svg{width:40px;height:40px;stroke:#fff;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+h1{font-family:Georgia,"Times New Roman",serif;font-weight:600;font-size:28px;margin:24px 0 16px}
+p{color:#64748b;font-size:15px;line-height:1.6;margin:0}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:10px 16px;margin-top:20px;text-align:left}
+.row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:14px}.row span{color:#737373}.row b{text-align:right;word-break:break-all}
+.b{display:block;margin-top:12px;padding:15px;border-radius:12px;font-weight:700;font-size:15px;text-decoration:none}
+.p{background:#319a81;color:#fff}.s{border:1px solid #e5e5e5;background:#fff;color:#1e3e2b}
+.acts{margin-top:32px}</style></head>
+<body><div class="w"><div class="brand">UK Stay Hub</div>
+<div class="ic"><svg viewBox="0 0 24 24">${ic.svg}</svg></div>
+<h1>${esc(title)}</h1><p>${body}</p>${card}
+<div class="acts">${primary ? `<a class="b p" href="${esc(primary.href)}">${esc(primary.label)}</a>` : ""}
+${secondary ? `<a class="b s" href="${esc(secondary.href)}">${esc(secondary.label)}</a>` : ""}</div>
+</div>${autoOpen ? `<script>setTimeout(function(){location.href=${JSON.stringify(autoOpen)}},300)</script>` : ""}</body></html>`;
+};
+
+const closedPage = (res, link) => {
+  if (link.state === "expired") {
+    return res.status(410).send(payPage({ icon: "⏱️", title: "Payment link expired",
+      body: "This payment link has expired and the dates have been released. Please make a new booking." }));
+  }
+  if (link.state === "taken") {
+    return res.status(410).send(payPage({ icon: "📅", title: "Dates no longer available",
+      body: "These dates have just been booked by another guest, so this link can't be paid right now. You have not been charged." }));
+  }
+  return res.status(410).send(payPage({ icon: "⚠️", title: "Payment not available",
+    body: "This booking can no longer be paid for. It may have been cancelled or declined." }));
+};
+
+// GET /pay/:reservationId — the emailed link opened in a BROWSER (the app did
+// not catch it: desktop, app not installed, or App Links not yet verified).
+// On a phone: offer to open the app (and try it automatically), or pay here.
+// On a desktop: straight on to Stripe Checkout.
+export const openPayLinkInBrowser = async (req, res) => {
+  try {
+    const reservation = req.reservation;
+    const link = await resolvePayLink(reservation);
+    const id = String(reservation._id);
+    const token = req.query.reservationToken ? `?reservationToken=${encodeURIComponent(req.query.reservationToken)}` : "";
+
+    if (link.state === "paid") {
+      return res.send(payPage({ icon: "✅", title: "Already paid",
+        body: "This booking is paid and confirmed. A confirmation was sent to your email, and the receipt is in the UK Stay Hub app under My bookings.",
+        primary: isPhone(req) ? { href: appUrl(`/payment-success?reservationId=${id}`), label: "Open in UK Stay Hub app" } : null }));
+    }
+    if (link.state !== "ready") return closedPage(res, link);
+
+    if (!isPhone(req) || req.query.web === "1") return res.redirect(303, link.url);
+
+    const inApp = appUrl(`/pay/${id}${token}`);
+    const sep = token ? "&" : "?";
+    return res.send(payPage({ icon: "💳", title: "Complete your payment",
+      body: "Pay in the UK Stay Hub app, or continue here in your browser.",
+      primary: { href: inApp, label: "Open in UK Stay Hub app" },
+      secondary: { href: `/pay/${id}${token}${sep}web=1`, label: "Pay in browser" },
+      autoOpen: inApp }));
+  } catch (err) {
+    console.error("openPayLinkInBrowser error:", err);
+    res.status(500).send(payPage({ icon: "⚠️", title: "Something went wrong", body: "Please try the link again in a moment." }));
+  }
+};
+
+// GET /pay/:reservationId/success?session_id=… — Stripe's return after an
+// emailed link was paid IN A BROWSER. Authorised like /verify-payment: only
+// completing that checkout yields the session id, and it must belong to :id.
+export const payLinkSuccessPage = async (req, res) => {
+  try {
+    const { reservationId } = req.params;
+    const sessionId = String(req.query.session_id || "");
+    const stripe = getStripe();
+    const session = sessionId ? await stripe.checkout.sessions.retrieve(sessionId).catch(() => null) : null;
+    if (!session || session.metadata?.reservationId !== reservationId) {
+      return res.status(404).send(payPage({ icon: "⚠️", title: "Payment not found", body: "We could not find this payment." }));
+    }
+    if (session.payment_status !== "paid") {
+      return res.send(payPage({ icon: "❌", title: "Payment not completed",
+        body: "You have not been charged. Use the link in your email to try again." }));
+    }
+    await applyPaidCheckoutSession(stripe, session, { source: "reconcile" }).catch(() => {});
+    const r = await Reservation.findById(reservationId).populate("accommodationId", "name");
+    const rows = r
+      ? [
+          ["Stay", [r.accommodationId?.name, r.unitName].filter(Boolean).join(" · ") || "—"],
+          ["Dates", `${toCalendarDateString(r.checkInDate)} → ${toCalendarDateString(r.checkOutDate)}`],
+          ["Guests", String(r.numberOfPersons || 1)],
+          ["Total paid", formatCents(r.totalPriceCents || Math.round((r.totalPrice || 0) * 100), r.currency)],
+          ["Transaction ID", String(r._id)],
+        ]
+      : null;
+    const inApp = appUrl(`/payment-success?session_id=${encodeURIComponent(sessionId)}&reservationId=${reservationId}`);
+    return res.send(payPage({ icon: "ok", title: "Payment successful",
+      body: "Your booking has been confirmed. You will receive an email confirmation shortly. The receipt is in the UK Stay Hub app under My bookings.",
+      rows,
+      primary: isPhone(req) ? { href: inApp, label: "Open in UK Stay Hub app" } : null,
+      autoOpen: isPhone(req) ? inApp : null }));
+  } catch (err) {
+    console.error("payLinkSuccessPage error:", err);
+    res.status(500).send(payPage({ icon: "⚠️", title: "Something went wrong", body: "Your payment may still have gone through — check your email." }));
+  }
+};
+
+// GET /pay/:reservationId/cancelled — guest backed out of Stripe in a browser.
+export const payLinkCancelledPage = (req, res) =>
+  res.send(payPage({ icon: "↩️", title: "Payment not completed",
+    body: "You have not been charged. The link in your email still works until it expires — open it again to pay." }));

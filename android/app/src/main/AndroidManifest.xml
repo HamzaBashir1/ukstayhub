@@ -27,6 +27,35 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Emailed payment links: https://<appLinkHost>/pay/<reservationId>
+                 open the app's in-app payment screen instead of the browser. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="${appLinkHost}" android:pathPrefix="/pay/"/>
+            </intent-filter>
+            <!-- Development: ukstayhub://app/pay/<reservationId> -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="ukstayhub" android:host="app"/>
+            </intent-filter>
+        </activity>
+        <!-- Stripe Connect onboarding runs in a Custom Tab (flutter_web_auth_2).
+             The backend redirects to ukstayhub://stripe-return/... when Stripe is
+             done; this activity catches it, closes the tab and returns to the app. -->
+        <activity
+            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:exported="true"
+            android:taskAffinity="">
+            <intent-filter android:label="flutter_web_auth_2">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="ukstayhub" android:host="stripe-return"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

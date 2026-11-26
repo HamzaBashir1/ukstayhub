@@ -290,4 +290,8 @@ class GuestReservation {
   String get paymentStatus => asString(raw['paymentStatus']);
   bool get cancelled => approval == 'cancelled' || asString(raw['status']) == 'cancelled' || raw['cancelledAt'] != null;
   bool get isPast => checkOut != null && checkOut!.isBefore(DateTime.now());
+  /// Settled payment – a receipt exists only then.
+  bool get paid => paymentStatus == 'paid' || paymentStatus == 'partially_refunded';
+  /// Host accepted a request; the guest still has to pay the emailed link.
+  bool get awaitingPayment => !cancelled && !paid && approval == 'approved' && asString(raw['bookingMode']) == 'request';
 }

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
+
+import '../checkout/receipt_screen.dart';
 
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/json.dart';
-import '../../core/storage.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
@@ -287,19 +287,31 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
           Text(t.pick('Spravujte svoje ubytovania a rezervácie.', 'Manage your properties and bookings.'),
               style: AppText.inter(size: 13, color: Colors.white70)),
           const SizedBox(height: 14),
-          OutlineBtn(
-            label: t.pick('Prepnúť režim', 'Switch mode'),
-            icon: Icons.arrow_forward,
-            color: AppColors.forest,
-            borderColor: Colors.white,
-            onPressed: () async {
-              try {
-                await ref.read(authProvider.notifier).switchMode('host', t.lang);
-                if (context.mounted) context.go('/host');
-              } catch (e) {
-                if (context.mounted) toast(context, errorText(e), error: true);
-              }
-            },
+          // Explicit white button: an outline button inherits the theme and
+          // its forest label vanished on this forest card.
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () async {
+                try {
+                  await ref.read(authProvider.notifier).switchMode('host', t.lang);
+                  if (context.mounted) context.go('/host');
+                } catch (e) {
+                  if (context.mounted) toast(context, errorText(e), error: true);
+                }
+              },
+              child: SizedBox(
+                height: 50,
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text(t.pick('Prepnúť režim', 'Switch mode'),
+                      style: AppText.inter(size: 15, weight: FontWeight.w700, color: AppColors.forest)),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward, size: 18, color: AppColors.forest),
+                ]),
+              ),
+            ),
           ),
         ]),
       ),
@@ -426,9 +438,11 @@ class _BookingCard extends ConsumerWidget {
     final img = l.images.isEmpty ? '' : l.images.first;
     final (label, fg, bg) = r.cancelled
         ? (t.pick('Zrušené', 'Cancelled'), AppColors.neutral600, AppColors.neutral100)
-        : r.approval == 'approved' || r.paymentStatus == 'paid'
-            ? (t.pick('Potvrdené', 'Confirmed'), AppColors.green, AppColors.mint)
-            : (t.pick('Čaká na hostiteľa', 'Awaiting the host'), const Color(0xFFB45309), const Color(0xFFFFFBEB));
+        : r.awaitingPayment
+            ? (t.pick('Čaká na platbu', 'Awaiting payment'), const Color(0xFFB45309), const Color(0xFFFFFBEB))
+            : r.paid
+                ? (t.pick('Potvrdené', 'Confirmed'), AppColors.green, AppColors.mint)
+                : (t.pick('Čaká na hostiteľa', 'Awaiting the host'), const Color(0xFFB45309), const Color(0xFFFFFBEB));
     final nights = r.checkIn == null || r.checkOut == null ? 0 : r.checkOut!.difference(r.checkIn!).inDays;
 
     return Material(
@@ -466,18 +480,27 @@ class _BookingCard extends ConsumerWidget {
             if (!r.cancelled) ...[
               const SizedBox(height: 12),
               Row(children: [
-                Expanded(
-                  child: OutlineBtn(
-                    label: t('DownloadReceipt', t.pick('Potvrdenie', 'Receipt')),
-                    icon: Icons.receipt_long_outlined,
-                    height: 42,
-                    onPressed: () async {
-                      final token = await SecureStore.reservationToken(r.id);
-                      final url = '${bookingRepo.receiptUrl(r.id, t.lang)}${token == null ? '' : '&reservationToken=${Uri.encodeComponent(token)}'}';
-                      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-                    },
-                  ),
-                ),
+                // Receipt only once paid (the server has none before that);
+                // an accepted request that is not paid yet offers Pay now.
+                if (r.paid)
+                  Expanded(
+                    child: OutlineBtn(
+                      label: t('DownloadReceipt', t.pick('Potvrdenie', 'Receipt')),
+                      icon: Icons.receipt_long_outlined,
+                      height: 42,
+                      onPressed: () => ReceiptScreen.open(context, r.id),
+                    ),
+                  )
+                else if (r.awaitingPayment && !past)
+                  Expanded(
+                    child: PrimaryButton(
+                      label: t.pick('Zaplatiť', 'Pay now'),
+                      height: 42,
+                      onPressed: () => context.push('/pay/${r.id}'),
+                    ),
+                  )
+                else
+                  const Spacer(),
                 if (!past) ...[
                   const SizedBox(width: 10),
                   Expanded(

@@ -268,13 +268,16 @@ export const sendGuestRequestClosedEmail = async ({
   hostMessage,
 }) => {
   const expired = reason === "expired";
+  const taken = reason === "taken";
   const searchLink = `${SITE}/listings`;
 
   const bodyHtml = `
     <p style="margin:0 0 14px 0;">Hi${reservation.name ? ` ${esc(reservation.name)}` : ""},</p>
     <p style="margin:0 0 16px 0;">
       ${
-        expired
+        taken
+          ? "Sorry — another guest has just booked and paid for these dates, so your request has been closed and your payment link no longer works."
+          : expired
           ? "The host didn't reply to your booking request, so it has expired."
           : "Unfortunately, the host couldn't accept your booking request."
       }
@@ -290,12 +293,14 @@ export const sendGuestRequestClosedEmail = async ({
   return send(
     {
       to,
-      subject: expired
+      subject: taken
+        ? "Your requested dates are no longer available"
+        : expired
         ? "Your booking request has expired"
         : "Your booking request was declined",
       html: brandShell({
         preheader: "You haven't been charged.",
-        title: expired ? "Request expired" : "Request declined",
+        title: taken ? "Dates no longer available" : expired ? "Request expired" : "Request declined",
         bodyHtml,
       }),
     },

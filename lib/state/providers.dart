@@ -86,7 +86,10 @@ String? destinationAsset(String regionId) {
 }
 
 // ───────────────────────────── Listing page ─────────────────────────────
-final listingProvider = FutureProvider.family<Listing, String>((ref, slug) => publicRepo.listingBySlug(slug));
+// autoDispose: refetched every time a listing is opened. Kept alive, the first
+// copy (and its availability calendar) stayed on screen for the whole app
+// session, so dates booked since then still looked free.
+final listingProvider = FutureProvider.autoDispose.family<Listing, String>((ref, slug) => publicRepo.listingBySlug(slug));
 final reviewsProvider = FutureProvider.family<List<Json>, String>((ref, id) => publicRepo.reviews(id));
 final hostPublicProvider = FutureProvider.family<Json, String>((ref, id) => publicRepo.host(id));
 

@@ -1,6 +1,6 @@
 // Routes/paymentRoutes.js
 import express from "express";
-import { cancelPayment, createCheckoutSession, createHostExpressAccount, releasePayoutToHost, verifyPayment, sendPaymentEmail, refreshHostStripeStatus, getFeePreview, listHostStripeAccounts, connectAdditionalStripeAccount, createStripeAccountLink, createStripeDashboardLink, setDefaultStripeAccount } from "../Controllers/PaymentController.js";
+import { cancelPayment, createCheckoutSession, createHostExpressAccount, releasePayoutToHost, verifyPayment, sendPaymentEmail, refreshHostStripeStatus, getFeePreview, listHostStripeAccounts, connectAdditionalStripeAccount, createStripeAccountLink, createStripeDashboardLink, setDefaultStripeAccount, getPayLink } from "../Controllers/PaymentController.js";
 import { requireHostSelf, requireReservationAccess } from "../auth/authorize.js";
 import {
   checkPayoutAccountRemoval,
@@ -136,6 +136,13 @@ router.post(
 // the Stripe session id, which only completing that checkout yields; it reads
 // state from Stripe and never accepts an amount from the client.
 router.post("/verify-payment", verifyPayment);
+
+// Status of an emailed payment link, for the app's in-app pay screen.
+router.get(
+  "/pay-link/:reservationId",
+  requireReservationAccess({ param: "reservationId" }),
+  getPayLink
+);
 
 // payment cancelled (user closed Stripe)
 router.post(

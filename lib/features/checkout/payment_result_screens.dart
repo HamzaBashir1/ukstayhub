@@ -4,17 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/api_client.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/json.dart';
-import '../../core/storage.dart';
 import '../../core/theme.dart';
 import '../../data/repo.dart';
+import '../../state/auth.dart';
 import '../../state/providers.dart';
 import '../../widgets/chrome.dart' show StayHubDrawer, StayHubFooter, StayHubHeader;
 import '../../widgets/common.dart';
+import 'payment_webview.dart';
+import 'receipt_screen.dart';
 import '../search/search_screen.dart' show FooterNav, MobileSearchHeader;
 
 /// request-sent/page.js wraps its content in the site chrome: the mobile search
@@ -103,6 +105,27 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
   }
 
   Future<void> _verify() async {
+    // Opened without a Stripe session (an emailed link for a booking that is
+    // already paid): the reservation itself says whether it is paid.
+    final rid = widget.reservationId ?? '';
+    if (widget.sessionId.isEmpty && rid.isNotEmpty) {
+      try {
+        final r = await bookingRepo.reservation(rid);
+        if (!mounted) return;
+        setState(() {
+          _reservation = r;
+          _ok = asString(r['paymentStatus']) == 'paid';
+          _verifying = false;
+        });
+        ref.invalidate(myReservationsProvider);
+        // The paid nights are now booked: drop cached listings so their
+        // calendars are fetched fresh.
+        api.clearCache();
+      } catch (_) {
+        if (mounted) setState(() => _verifying = false);
+      }
+      return;
+    }
     if (widget.sessionId.isEmpty) {
       setState(() {
         _verifying = false;
@@ -116,7 +139,7 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
       if (pending && _attempts < 6) {
         _attempts++;
         await Future<void>.delayed(const Duration(seconds: 2));
-        if (mounted) return _verify();
+        if (mounted) return await _verify();
         return;
       }
       if (!mounted) return;
@@ -126,6 +149,7 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
         _verifying = false;
       });
       ref.invalidate(myReservationsProvider);
+      api.clearCache(); // fresh listing calendars after a payment
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -179,13 +203,24 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
           OutlineBtn(
             label: t('DownloadReceipt', 'Stiahnuť potvrdenie'),
             icon: Icons.receipt_long_outlined,
-            onPressed: () async {
-              final token = await SecureStore.reservationToken(rid);
-              final url = '${bookingRepo.receiptUrl(rid, t.lang)}${token == null ? '' : '&reservationToken=${Uri.encodeComponent(token)}'}';
-              await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-            },
+            onPressed: () => ReceiptScreen.open(context, rid),
           ),
-        PrimaryButton(label: t('ReturnHome', 'Späť na úvod'), onPressed: () => context.go('/')),
+        if (_ok && rid.isNotEmpty && ref.watch(authProvider).loggedIn)
+          OutlineBtn(
+            label: t('MyBookings', 'My bookings'),
+            icon: Icons.luggage_outlined,
+            onPressed: () => context.go('/guest?tab=bookings'),
+          ),
+        if (!_ok) ...[
+          PrimaryButton(
+            label: t('TryAgain', 'Try again'),
+            onPressed: () => rid.isNotEmpty ? context.go('/pay/$rid') : context.go('/mapa'),
+          ),
+          OutlineBtn(label: t('ContactSupport', 'Contact support'), onPressed: () => context.go('/kontakt')),
+        ],
+        _ok
+            ? PrimaryButton(label: t('ReturnHome', 'Späť na úvod'), onPressed: () => context.go('/'))
+            : OutlineBtn(label: t('ReturnHome', 'Späť na úvod'), onPressed: () => context.go('/')),
       ],
     );
   }
@@ -210,6 +245,195 @@ class _Card extends StatelessWidget {
             ),
         ]),
       );
+}
+
+/// /pay/:id – the payment link from the "request accepted" email, opened in
+/// the app (App Links / Universal Links). Shows the booking, runs Stripe
+/// Checkout in the in-app WebView and ends on the in-app result screens.
+///
+/// Closing the payment here does NOT call /payments/cancel: for an emailed
+/// link that would undo the host's approval. The link simply stays valid
+/// until it expires, so the guest can try again.
+class PayLinkScreen extends ConsumerStatefulWidget {
+  const PayLinkScreen({super.key, required this.reservationId, this.token});
+  final String reservationId;
+  final String? token;
+  @override
+  ConsumerState<PayLinkScreen> createState() => _PayLinkScreenState();
+}
+
+class _PayLinkScreenState extends ConsumerState<PayLinkScreen> {
+  Json? _data;
+  Object? _error;
+  bool _loading = true;
+  bool _paying = false;
+  bool _notCompleted = false;
+
+  String get _id => widget.reservationId;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final token = widget.token ?? '';
+      if (token.isNotEmpty) await bookingRepo.rememberToken(_id, token);
+      final d = await bookingRepo.payLink(_id);
+      if (!mounted) return;
+      if (asString(d['state']) == 'paid') {
+        context.go('/payment-success?reservationId=$_id');
+        return;
+      }
+      setState(() {
+        _data = d;
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e;
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _pay() async {
+    final url = asString(_data?['url']);
+    if (url.isEmpty || _paying) return;
+    setState(() => _paying = true);
+    final result = await Navigator.of(context).push<PaymentResult>(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => PaymentWebView(url: url),
+    ));
+    if (!mounted) return;
+    setState(() => _paying = false);
+    if (result?.status == PaymentStatus.success) {
+      context.go('/payment-success?session_id=${Uri.encodeComponent(result!.sessionId ?? '')}&reservationId=$_id');
+      return;
+    }
+    // Closed or cancelled: the link is still good until it expires.
+    setState(() => _notCompleted = true);
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(stringsProvider);
+    if (_loading && _data == null) {
+      return const Scaffold(backgroundColor: AppColors.cream, body: LoadingView());
+    }
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: AppColors.cream,
+        body: SafeArea(
+          child: ErrorView(
+            message: t('PayLinkLoadFailed', 'We could not open this payment link. Please try again.'),
+            error: _error,
+            onRetry: _load,
+          ),
+        ),
+      );
+    }
+
+    final state = asString(_data?['state']);
+    final r = asMap(_data?['reservation']);
+    if (state == 'taken') {
+      return _ResultScaffold(
+        icon: Icons.event_busy_outlined,
+        iconBg: AppColors.amber,
+        title: t('DatesTakenTitle', 'Dates no longer available'),
+        body: Text(
+          t('DatesTakenBody', 'Another guest has just booked these dates, so this booking can\'t be paid. You have not been charged.'),
+          textAlign: TextAlign.center,
+          style: AppText.inter(size: 15, color: AppColors.slate, height: 1.6),
+        ),
+        actions: [
+          PrimaryButton(label: t('BrowseAccommodations', 'Browse stays'), onPressed: () => context.go('/mapa')),
+          OutlineBtn(label: t('ReturnHome', 'Späť na úvod'), onPressed: () => context.go('/')),
+        ],
+      );
+    }
+    if (state != 'ready') {
+      final expired = state == 'expired';
+      return _ResultScaffold(
+        icon: expired ? Icons.timer_off_outlined : Icons.error_outline,
+        iconBg: expired ? AppColors.amber : AppColors.red,
+        title: expired
+            ? t('PayLinkExpiredTitle', 'Payment link expired')
+            : t('PayLinkUnavailableTitle', 'Payment not available'),
+        body: Text(
+          expired
+              ? t('PayLinkExpiredBody', 'This payment link has expired and the dates have been released. You can make a new booking for the same dates if they are still free.')
+              : t('PayLinkUnavailableBody', 'This booking can no longer be paid for. It may have been cancelled or declined.'),
+          textAlign: TextAlign.center,
+          style: AppText.inter(size: 15, color: AppColors.slate, height: 1.6),
+        ),
+        actions: [
+          PrimaryButton(label: t('BrowseAccommodations', 'Browse stays'), onPressed: () => context.go('/mapa')),
+          OutlineBtn(label: t('ReturnHome', 'Späť na úvod'), onPressed: () => context.go('/')),
+        ],
+      );
+    }
+
+    final total = money(asInt(r['totalPriceCents']) / 100, decimals: true);
+    final expiresAt = DateTime.tryParse(asString(_data?['expiresAt']))?.toLocal();
+    final listing = [asString(pick(r, 'accommodationId.name')), asString(r['unitName'])].where((e) => e.isNotEmpty).join(' · ');
+    return _ResultScaffold(
+      icon: Icons.credit_card,
+      iconBg: AppColors.green,
+      title: t('CompletePaymentTitle', 'Complete your payment'),
+      body: Column(children: [
+        Text(
+          t('CompletePaymentBody', 'The host accepted your request. Pay now to confirm your booking.'),
+          textAlign: TextAlign.center,
+          style: AppText.inter(size: 15, color: AppColors.slate, height: 1.6),
+        ),
+        if (_notCompleted) ...[
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color(0xFFFFF7E6), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFF5D9A0))),
+            child: Text(
+              t('PaymentNotCompleted', 'The payment was not completed and you have not been charged. You can try again below.'),
+              textAlign: TextAlign.center,
+              style: AppText.inter(size: 14, color: const Color(0xFF8A6A1F)),
+            ),
+          ),
+        ],
+        const SizedBox(height: 20),
+        _Card(rows: [
+          if (listing.isNotEmpty) (t('Accommodation', 'Stay'), listing),
+          (t('Dates', t.pick('Termín', 'Dates')), rangeLabel(asDay(r['checkInDate']), asDay(r['checkOutDate']), t.lang)),
+          (t('Guests', 'Guests'), '${asInt(r['numberOfPersons'], 1)}'),
+          (t('Total', 'Spolu'), total),
+        ]),
+        if (expiresAt != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            '${t('PayBefore', 'Pay before')} ${DateFormat('d MMM yyyy, HH:mm', 'en_GB').format(expiresAt)}',
+            textAlign: TextAlign.center,
+            style: AppText.inter(size: 13, color: AppColors.neutral500),
+          ),
+        ],
+      ]),
+      actions: [
+        PrimaryButton(
+          label: _paying ? t('OpeningPayment', 'Opening payment…') : '${t('PayNow', 'Pay')} $total',
+          onPressed: _paying ? null : _pay,
+        ),
+        OutlineBtn(label: t('NotNow', 'Not now'), onPressed: () => context.go('/')),
+      ],
+    );
+  }
 }
 
 /// payment-cancel/page.js

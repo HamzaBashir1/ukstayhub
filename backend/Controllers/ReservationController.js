@@ -46,6 +46,8 @@ import { hostOnboardingGuidance } from "../utils/hostOnboardingSteps.js";
 import { isAccountPayoutReady, resolvePayoutAccount } from "../utils/payoutAccounts.js";
 import { missingBillingFieldsOf } from "../utils/hostBilling.js";
 import { formatCents } from "../utils/money.js";
+import { payLinkUrl, payLinkBase } from "../utils/payLink.js";
+import { checkAvailability } from "../utils/calendarHold.js";
 
 
 
@@ -306,6 +308,19 @@ export const createReservation = async (req, res) => {
     // Either way a request charges nothing here, creates no Stripe session, and
     // leaves the dates on the market until the host approves and the guest
     // actually pays.
+    // Refuse dates that are already booked (or held by a live checkout) before
+    // anything is recorded. Instant bookings were caught later at checkout,
+    // but a REQUEST never reaches checkout until the host accepts — so a guest
+    // could send a request for nights somebody had already paid for.
+    const availability = await checkAvailability(reservation);
+    if (!availability.ok) {
+      return res.status(409).json({
+        error: "Some of these dates are no longer available. Please choose different dates.",
+        code: "dates_unavailable",
+        conflictDays: availability.conflictDays || [],
+      });
+    }
+
     const host = await Host.findById(reservation.accommodationProvider).catch(() => null);
     reservation.bookingMode = bookingModeForHost(host);
 
@@ -887,6 +902,7 @@ export const updateReservation = async (req, res) => {
             // Same rule as the host workspace's Accept above: approving emails
             // a payment link, so the nights stay available until it is paid.
             reserveDates: false,
+            returnBase: payLinkBase(req),
           });
 
           // Save session ID to updates
@@ -895,6 +911,11 @@ export const updateReservation = async (req, res) => {
 
           // 2. Send Email to Guest
           const transporter = getTransporter();
+          // Our /pay/:id link, not the raw Stripe URL — it opens the app on a
+          // phone that has it (see utils/payLink.js).
+          const { accessToken } =
+            (await Reservation.findById(reservation._id).select("+accessToken").lean()) || {};
+          const payUrl = payLinkUrl(req, reservation._id, accessToken);
 
           const ukDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
           const checkInDate = ukDate(reservation.checkInDate);
@@ -950,9 +971,9 @@ export const updateReservation = async (req, res) => {
                   ])
                 )}
                 <p style="margin:18px 0 0 0;">${text.paymentInstruction}</p>
-                ${button(session.url, text.payButton)}
+                ${button(payUrl, text.payButton)}
                 <p style="margin:0;color:#6B7280;font-size:13px;word-break:break-all;">
-                  ${text.fallbackLink}<br />${esc(session.url)}
+                  ${text.fallbackLink}<br />${esc(payUrl)}
                 </p>`,
             }),
           };
@@ -1074,6 +1095,7 @@ export const approveBookingRequest = async (req, res) => {
         // checkout assumes.
         expiresInHours: PAYMENT_LINK_HOURS,
         reserveDates: false,
+        returnBase: payLinkBase(req),
         skipPayoutGate: true,
       }));
     } catch (err) {
@@ -1100,11 +1122,17 @@ export const approveBookingRequest = async (req, res) => {
 
     const listing = await Accommodation.findById(reservation.accommodationId).select("name");
 
+    // The mailed button points at /pay/:id on our domain, not at Stripe, so
+    // that on a phone with the app installed it opens the app (App Links /
+    // Universal Links). Without the app it redirects on to this same session.
+    const { accessToken } =
+      (await Reservation.findById(reservation._id).select("+accessToken").lean()) || {};
+
     await sendGuestPaymentLinkEmail({
       to: reservation.email,
       reservation,
       listingName: listing?.name,
-      paymentUrl: session.url,
+      paymentUrl: payLinkUrl(req, reservation._id, accessToken),
       expiresAt: reservation.paymentLinkExpiresAt,
     });
 

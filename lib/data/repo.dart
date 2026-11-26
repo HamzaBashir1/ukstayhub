@@ -240,6 +240,18 @@ class BookingRepo {
   Future<Json> verifyPayment(String sessionId) async =>
       asMap(await api.post('/payments/verify-payment', body: {'sessionId': sessionId}));
 
+  /// Where an emailed payment link stands: `state` is paid | ready | expired |
+  /// unavailable; `url` is the Stripe Checkout page when ready.
+  Future<Json> payLink(String reservationId) async =>
+      asMap(await api.get('/payments/pay-link/$reservationId', reservationId: reservationId));
+
+  /// The receipt PDF, downloaded with the booking's token so it opens in-app.
+  Future<List<int>> receiptPdf(String id, String lang) =>
+      api.getBytes('/receipts/$id', query: {'lang': lang}, reservationId: id);
+
+  /// Keeps a booking's capability token that arrived in an emailed link.
+  Future<void> rememberToken(String id, String token) => _remember(id, token);
+
   Future<void> cancelPending(String reservationId) =>
       api.post('/payments/cancel', reservationId: reservationId, body: {'reservationId': reservationId});
 

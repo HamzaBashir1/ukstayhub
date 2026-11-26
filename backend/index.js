@@ -41,7 +41,7 @@ import BlogRoutes from "./Routes/BlogRoutes.js"
 import BlogCommentRoutes from "./Routes/BlogCommentRoutes.js"
 // import { startReviewJob } from "./utils/reviewJob.js";
 import paymentRoutes from "./Routes/paymentRoutes.js"
-import { handleStripeWebhook } from "./Controllers/PaymentController.js";
+import { handleStripeWebhook, openPayLinkInBrowser, payLinkSuccessPage, payLinkCancelledPage, hostOnboardAppReturn } from "./Controllers/PaymentController.js";
 import { connectRedis } from "./utils/redis.js";
 import cancellationRoutes from "./Routes/cancellationRoutes.js";
 import receiptRoutes from "./Routes/receiptRoutes.js";
@@ -51,6 +51,8 @@ import { startInvoiceJob } from "./utils/invoiceJob.js";
 import { sweepExpiredHolds } from "./utils/calendarHold.js";
 import invoiceRoutes from "./Routes/invoiceRoutes.js";
 import icoRoutes from "./Routes/icoRoutes.js";
+import { assetLinks, appleAppSiteAssociation } from "./utils/payLink.js";
+import { requireReservationAccess } from "./auth/authorize.js";
 
 dotenv.config();
 
@@ -149,6 +151,17 @@ app.get('/', (req, res) => {
 });
 
 app.set('trust proxy', true);
+
+// App Links / Universal Links: these let the emailed /pay/:id link open the
+// mobile app instead of the browser. See utils/payLink.js.
+app.get('/.well-known/assetlinks.json', assetLinks);
+app.get('/.well-known/apple-app-site-association', appleAppSiteAssociation);
+// The same link opened without the app: on to Stripe Checkout.
+// Stripe Connect onboarding return for hosts using the mobile app.
+app.get('/app-return/host/onboard/:kind', hostOnboardAppReturn);
+app.get('/pay/:reservationId/success', payLinkSuccessPage);
+app.get('/pay/:reservationId/cancelled', payLinkCancelledPage);
+app.get('/pay/:reservationId', requireReservationAccess({ param: 'reservationId' }), openPayLinkInBrowser);
 
 // Routes
 app.use('/api/auth', authRoutes);

@@ -46,7 +46,9 @@ class ApiClient {
       // Browsers can't time the upload of a body-less request; setting this
       // on web only produces the "sendTimeout cannot be used" warning.
       sendTimeout: kIsWeb ? null : const Duration(seconds: 60),
-      headers: {'Accept': 'application/json'},
+      // X-Client tells the backend this is the mobile app, so Stripe return
+      // pages (Connect onboarding) come back to the app, not the website.
+      headers: {'Accept': 'application/json', if (!kIsWeb) 'X-Client': 'app'},
       responseType: ResponseType.json,
     ));
     _dio.interceptors.add(InterceptorsWrapper(
@@ -103,6 +105,16 @@ class ApiClient {
       if (_cache.length > 200) _cache.remove(_cache.keys.first);
     }
     return data;
+  }
+
+  /// Raw bytes (PDF receipts), with the same auth headers as every other call.
+  Future<List<int>> getBytes(String path, {Map<String, dynamic>? query, String? reservationId}) async {
+    final data = await _send(() => _dio.get<List<int>>(
+          path,
+          queryParameters: _clean(query),
+          options: Options(responseType: ResponseType.bytes, extra: {'reservationId': reservationId}),
+        ));
+    return data as List<int>;
   }
 
   Future<dynamic> post(String path, {Object? body, String? reservationId}) =>

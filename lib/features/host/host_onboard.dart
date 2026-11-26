@@ -117,6 +117,7 @@ class _SuccessState extends ConsumerState<HostOnboardSuccessScreen> {
   @override
   void initState() {
     super.initState();
+    closeStripeSheet();
     _verify();
   }
 
@@ -273,6 +274,7 @@ class _RefreshState extends ConsumerState<HostOnboardRefreshScreen> {
   @override
   void initState() {
     super.initState();
+    closeStripeSheet();
     _restart();
   }
 

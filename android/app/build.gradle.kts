@@ -23,6 +23,11 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Domain whose https://<host>/pay/<id> payment links open this app
+        // (Android App Links). It must serve /.well-known/assetlinks.json —
+        // the backend does. Override with -PappLinkHost=api.example.com.
+        manifestPlaceholders["appLinkHost"] =
+            (project.findProperty("appLinkHost") as String?) ?: "backend-9k3q.onrender.com"
     }
 
     buildTypes {

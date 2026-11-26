@@ -46,7 +46,7 @@ const _restoreWindow = Duration(hours: 6);
 /// result pages and the Stripe return pages.
 bool _restorable(String location) {
   final path = Uri.parse(location).path;
-  const never = ['/checkout', '/payment-success', '/payment-cancel', '/request-sent', '/host/onboard', '/login', '/registracia', '/reset-password', '/zabudnute-heslo', '/obnovit-heslo', '/overenie'];
+  const never = ['/checkout', '/pay', '/payment-success', '/payment-cancel', '/request-sent', '/host/onboard', '/login', '/registracia', '/reset-password', '/zabudnute-heslo', '/obnovit-heslo', '/overenie'];
   return path.isNotEmpty && path != '/' && !never.any((p) => path == p || path.startsWith('$p/'));
 }
 
@@ -102,6 +102,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/payment-cancel', builder: (_, __) => const PaymentCancelScreen()),
+      // The emailed payment link (App Links / Universal Links, or the
+      // ukstayhub://app/pay/<id> scheme in development).
+      // Stripe's return pages for an emailed link, if App Links open them in the app.
+      GoRoute(
+        path: '/pay/:id/success',
+        builder: (_, s) => PaymentSuccessScreen(
+          sessionId: s.uri.queryParameters['session_id'] ?? '',
+          reservationId: s.pathParameters['id'],
+        ),
+      ),
+      GoRoute(path: '/pay/:id/cancelled', redirect: (_, s) => '/pay/${s.pathParameters['id']}'),
+      GoRoute(
+        path: '/pay/:id',
+        builder: (_, s) => PayLinkScreen(
+          reservationId: s.pathParameters['id']!,
+          token: s.uri.queryParameters['reservationToken'],
+        ),
+      ),
       GoRoute(
         path: '/request-sent',
         builder: (_, s) => RequestSentScreen(reservationId: s.uri.queryParameters['reservationId'] ?? ''),

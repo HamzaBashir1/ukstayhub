@@ -29,13 +29,11 @@ class _PaymentWebViewState extends State<PaymentWebView> {
   int _progress = 0;
   bool _done = false;
 
+  bool _isStripeHost(String host) =>
+      host == 'stripe.com' || host.endsWith('.stripe.com') || host.endsWith('.stripe.network');
+
   bool _allowedHost(String host) =>
-      host == 'checkout.stripe.com' ||
-      host.endsWith('.stripe.com') ||
-      host.endsWith('.stripe.network') ||
-      host == 'js.stripe.com' ||
-      host.endsWith('.hcaptcha.com') ||
-      AppConfig.isSiteHost(host);
+      _isStripeHost(host) || host.endsWith('.hcaptcha.com') || AppConfig.isSiteHost(host);
 
   @override
   void initState() {
@@ -47,7 +45,24 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         onNavigationRequest: (req) {
           final uri = Uri.tryParse(req.url);
           if (uri == null) return NavigationDecision.prevent;
-          final onSite = AppConfig.isSiteHost(uri.host);
+          // Stripe's own pages never use these paths, so any other host ending
+          // here is our return URL – whatever CLIENT_SITE_URL the backend runs
+          // with (production domain, localhost:3000 in dev, a preview URL).
+          // Matching only the production domains let a dev/staging redirect
+          // fall through to the "open externally" branch below and kick the
+          // guest out to the browser.
+          final onSite = AppConfig.isSiteHost(uri.host) || !_isStripeHost(uri.host);
+          // Emailed links return to the backend's /pay/<id>/success|cancelled.
+          final segs = uri.pathSegments;
+          final payReturn = onSite && segs.length == 3 && segs[0] == 'pay' ? segs[2] : null;
+          if (payReturn == 'success') {
+            _finish(PaymentResult(PaymentStatus.success, sessionId: uri.queryParameters['session_id']));
+            return NavigationDecision.prevent;
+          }
+          if (payReturn == 'cancelled') {
+            _finish(const PaymentResult(PaymentStatus.cancelled));
+            return NavigationDecision.prevent;
+          }
           if (onSite && uri.path.contains('payment-success')) {
             _finish(PaymentResult(PaymentStatus.success, sessionId: uri.queryParameters['session_id']));
             return NavigationDecision.prevent;
