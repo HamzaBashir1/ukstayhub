@@ -78,7 +78,14 @@ List<DestSuggestion> destinationSuggestions(
     if (total > 0) regs.add(DestSuggestion('region', asString(r['nameSk']), count: total, cities: rc, regionId: asString(r['id'])));
   }
   final regionNames = regs.map((e) => searchKey(e.label)).toSet();
-  final distinct = cities.where((c) => !regionNames.contains(searchKey(c.label))).toList();
+  // Only verified cities (curated region lists or the basic UK list) are suggested;
+  // catalog "cities" like villages/hamlets (e.g. Yarkhill) are dropped.
+  final verified = {
+    for (final r in regions) ...asStringList(r['cities']).map(searchKey),
+    ..._basicUkCities.map(searchKey),
+  };
+  final distinct =
+      cities.where((c) => !regionNames.contains(searchKey(c.label)) && verified.contains(searchKey(c.label))).toList();
   final known = {...distinct.map((c) => searchKey(c.label)), ...regionNames};
   final basics = [for (final n in _basicUkCities) if (!known.contains(searchKey(n))) DestSuggestion('city', n)];
 

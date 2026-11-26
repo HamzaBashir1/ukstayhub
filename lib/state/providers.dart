@@ -104,8 +104,7 @@ class FavoritesNotifier extends AsyncNotifier<Set<String>> {
     final auth = ref.watch(authProvider);
     if (!auth.loggedIn || auth.isHost) return <String>{};
     try {
-      final list = await guestRepo.favorites();
-      return list.map((l) => l.id).toSet();
+      return (await guestRepo.favoriteIds()).toSet();
     } catch (_) {
       return <String>{};
     }
@@ -129,7 +128,10 @@ class FavoritesNotifier extends AsyncNotifier<Set<String>> {
 }
 
 final favoritesProvider = AsyncNotifierProvider<FavoritesNotifier, Set<String>>(FavoritesNotifier.new);
-final favoriteListingsProvider = FutureProvider<List<Listing>>((ref) => guestRepo.favorites());
+final favoriteListingsProvider = FutureProvider<List<Listing>>((ref) {
+  ref.watch(authProvider); // never show the previous account's saved stays
+  return guestRepo.favorites();
+});
 final myReservationsProvider = FutureProvider<List<GuestReservation>>((ref) => guestRepo.reservations());
 
 // ───────────────────────────── Blog ─────────────────────────────

@@ -173,11 +173,22 @@ class GuestRepo {
   Future<void> changePassword(String current, String next) =>
       api.post('/guest/change-password', body: {'currentPassword': current, 'newPassword': next});
 
+  /// The API returns saved stays as bare listing ids.
+  Future<List<String>> favoriteIds() async => asStringList(asMap(await api.get('/guest/favorites'))['favorites']);
+
+  // shortcut: one request per saved stay; add a batch endpoint if guests save dozens.
   Future<List<Listing>> favorites() async {
-    final m = asMap(await api.get('/guest/favorites'));
-    final list = m['favorites'] ?? m['data'] ?? m['accommodations'];
-    return asMapList(list).map((e) => Listing(e['accommodation'] is Map ? asMap(e['accommodation']) : e)).toList();
+    final found = await Future.wait((await favoriteIds()).map((id) async {
+      try {
+        return await publicRepo.listingById(id);
+      } on ApiException catch (e) {
+        if (e.status == 404) return null; // saved, but since removed
+        rethrow;
+      }
+    }));
+    return found.whereType<Listing>().toList();
   }
+
 
   Future<void> addFavorite(String id) => api.post('/guest/favorites', body: {'accommodationId': id});
   Future<void> removeFavorite(String id) => api.delete('/guest/favorites/${Uri.encodeComponent(id)}');

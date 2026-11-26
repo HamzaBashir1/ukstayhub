@@ -296,7 +296,7 @@ class _HostNavPanel extends ConsumerWidget {
     final attention = hostAttention(listingsAsync.valueOrNull ?? const [], ref.watch(hostStripeAccountsProvider).valueOrNull);
 
     void go(String path) {
-      if (closable) Navigator.of(context).pop();
+      if (closable) Scaffold.of(context).closeDrawer();
       context.go(path);
     }
 
@@ -304,7 +304,7 @@ class _HostNavPanel extends ConsumerWidget {
       try {
         final l = await hostRepo.createListing();
         ref.invalidate(hostListingsProvider);
-        if (closable && context.mounted) Navigator.of(context).pop();
+        if (closable && context.mounted) Scaffold.of(context).closeDrawer();
         if (context.mounted) context.go('/host/listings/${asString(l['id'])}');
       } catch (e) {
         if (context.mounted) toast(context, errorText(e), error: true);
@@ -404,7 +404,7 @@ class _HostNavPanel extends ConsumerWidget {
               if (closable)
                 InkWell(
                   borderRadius: BorderRadius.circular(12),
-                  onTap: () => Navigator.of(context).pop(),
+                  onTap: () => Scaffold.of(context).closeDrawer(),
                   child: const SizedBox(width: 44, height: 44, child: Icon(Icons.close, size: 20, color: Colors.white)),
                 ),
             ]),

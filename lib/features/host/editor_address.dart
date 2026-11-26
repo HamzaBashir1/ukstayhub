@@ -76,7 +76,9 @@ class _AddressSuggestFieldState extends State<AddressSuggestField> {
     final a = asMap(place['address']);
     final road = asString(a['road'], asString(a['pedestrian'], asString(a['footway'])));
     final number = asString(a['house_number']);
-    final city = asString(a['city'], asString(a['town'], asString(a['village'], asString(a['municipality']))));
+    // Central London results carry no city/town: only Greater London in state_district/county.
+    final isLondon = [a['state_district'], a['county'], a['city']].any((e) => asString(e).contains('London'));
+    final city = isLondon ? 'London' : asString(a['city'], asString(a['town'], asString(a['village'], asString(a['municipality']))));
     final street = road.isNotEmpty ? [road, number].where((e) => e.isNotEmpty).join(' ') : asString(place['display_name']).split(',').first.trim();
     FocusManager.instance.primaryFocus?.unfocus();
     widget.set('street', street);
@@ -86,12 +88,11 @@ class _AddressSuggestFieldState extends State<AddressSuggestField> {
       widget.set('latitude', lat);
       widget.set('longitude', lon);
     }
-    // Only fill what the host has not already typed, so a picked suggestion never overwrites a manual correction.
-    final d = widget.data;
-    if (city.isNotEmpty && asString(d['city']).isEmpty) widget.set('city', city);
-    if (asString(a['postcode']).isNotEmpty && asString(d['zipCode']).isEmpty) widget.set('zipCode', asString(a['postcode']));
-    if (asString(a['country']).isNotEmpty && asString(d['country']).isEmpty) widget.set('country', asString(a['country']));
-    if (asString(a['state']).isNotEmpty && asString(d['state']).isEmpty) widget.set('state', asString(a['state']));
+    // A picked suggestion replaces city/postcode/country/region: they belong to the new street.
+    if (city.isNotEmpty) widget.set('city', city);
+    if (asString(a['postcode']).isNotEmpty) widget.set('zipCode', asString(a['postcode']));
+    if (asString(a['country']).isNotEmpty) widget.set('country', asString(a['country']));
+    if (asString(a['state']).isNotEmpty) widget.set('state', asString(a['state']));
     setState(() => _results = const []);
   }
 

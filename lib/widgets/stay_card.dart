@@ -92,9 +92,12 @@ class _GallerySliderState extends State<GallerySlider> {
 
 /// components/GridFeaturePlaces/StayCardFeatured.js
 class StayCard extends ConsumerWidget {
-  const StayCard({super.key, required this.listing, this.showFavorite = true});
+  const StayCard({super.key, required this.listing, this.showFavorite = true, this.guestStyle = false});
   final Listing listing;
   final bool showFavorite;
+
+  /// The putko.sk card look, used by the guest panel only.
+  final bool guestStyle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -130,7 +133,7 @@ class StayCard extends ConsumerWidget {
                     boxShadow: const [BoxShadow(color: Color(0x1A000000), blurRadius: 12, offset: Offset(0, 4))],
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.check_rounded, size: 20, color: AppColors.green),
+                    Icon(Icons.check_rounded, size: 20, color: guestStyle ? AppColors.forest : AppColors.green),
                     const SizedBox(width: 6),
                     Text(t('StayHubVerified', 'UK Stay Hub overené'),
                         style: AppText.inter(size: 13.6, weight: FontWeight.w600, color: AppColors.forest)),
@@ -143,27 +146,29 @@ class StayCard extends ConsumerWidget {
               padding: const EdgeInsets.all(20),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(
-                  _cap(listing.name(lang)),
+                  guestStyle ? _capWords(listing.name(lang)) : _cap(listing.name(lang)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppText.fraunces(size: 22, color: Colors.black),
+                  style: AppText.fraunces(size: 22, color: Colors.black, height: guestStyle ? 1.5 : null),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  [if (listing.city.isNotEmpty) listing.city, country].join(', '),
+                  guestStyle
+                      ? _capWords([if (listing.city.isNotEmpty) listing.city, country].join(', '))
+                      : [if (listing.city.isNotEmpty) listing.city, country].join(', '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppText.inter(size: 14, color: AppColors.slate),
+                  style: AppText.inter(size: 14, color: AppColors.slate, height: guestStyle ? 10 / 7 : null),
                 ),
                 const SizedBox(height: 16),
                 const Divider(color: Color(0x0F2A2A2A), height: 1),
-                const SizedBox(height: 16),
+                SizedBox(height: guestStyle ? 24 : 16),
                 Row(children: [
-                  Text(money(listing.pricePerNight), style: AppText.dmSans(size: 20, weight: FontWeight.w700, color: AppColors.greenPrice)),
+                  Text(money(listing.pricePerNight), style: AppText.dmSans(size: 20, weight: FontWeight.w700, color: AppColors.greenPrice, height: guestStyle ? 1.4 : null)),
                   const SizedBox(width: 4),
                   Text('/${t('night', 'noc')}', style: AppText.inter(size: 14, color: AppColors.slate)),
                   const Spacer(),
-                  const Icon(Icons.star_rounded, size: 18, color: AppColors.yellowStar),
+                  Icon(Icons.star_rounded, size: guestStyle ? 16 : 18, color: AppColors.yellowStar),
                   const SizedBox(width: 4),
                   Text(rating > 0 ? rating.toStringAsFixed(1) : t('New', 'Nové'),
                       style: AppText.dmSans(size: 16, weight: FontWeight.w500, color: const Color(0xFF2A2A2A))),
@@ -177,6 +182,9 @@ class StayCard extends ConsumerWidget {
   }
 
   static String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+  /// CSS `text-transform: capitalize` – upper-cases the first letter of every word.
+  static String _capWords(String s) => s.split(' ').map(_cap).join(' ');
 
   static String _country(String c, String lang) {
     final n = c.trim().toLowerCase();

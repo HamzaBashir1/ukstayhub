@@ -351,7 +351,7 @@ class _FavoritesTab extends ConsumerWidget {
                 itemCount: items.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 20),
                 itemBuilder: (_, i) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  StayCard(listing: items[i]),
+                  StayCard(listing: items[i], guestStyle: true),
                   const SizedBox(height: 8),
                   OutlineBtn(
                     label: t.pick('Odstrániť', 'Remove'),
