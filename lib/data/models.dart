@@ -216,8 +216,11 @@ class Region {
 /// Where the search is pointed: a single place, a tourism region, or a
 /// listing name typed into the search box.
 class Destination {
-  const Destination._(this.type, this.label, {this.cities = const [], this.regionId});
+  const Destination._(this.type, this.label, {this.cities = const [], this.regionId, this.lat, this.lng});
   const Destination.city(String city) : this._('city', city);
+
+  /// A street, postcode or area picked from Geoapify: stays near [lat]/[lng].
+  const Destination.place(String label, double lat, double lng) : this._('place', label, lat: lat, lng: lng);
   const Destination.name(String name) : this._('name', name);
   const Destination.region(String label, List<String> cities, String regionId)
       : this._('region', label, cities: cities, regionId: regionId);
@@ -226,8 +229,10 @@ class Destination {
   final String label;
   final List<String> cities;
   final String? regionId;
+  final double? lat;
+  final double? lng;
 
-  Json toJson() => {'type': type, 'label': label, 'cities': cities, 'regionId': regionId};
+  Json toJson() => {'type': type, 'label': label, 'cities': cities, 'regionId': regionId, if (lat != null) 'lat': lat, if (lng != null) 'lng': lng};
 
   static Destination? fromJson(Json? j) {
     if (j == null) return null;
@@ -238,6 +243,10 @@ class Destination {
         return Destination.region(label, asStringList(j['cities']), asString(j['regionId']));
       case 'name':
         return Destination.name(label);
+      case 'place':
+        final lat = j['lat'], lng = j['lng'];
+        if (lat is num && lng is num) return Destination.place(label, lat.toDouble(), lng.toDouble());
+        return Destination.city(label);
       default:
         return Destination.city(label);
     }

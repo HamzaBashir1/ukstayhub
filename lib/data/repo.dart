@@ -63,6 +63,16 @@ class PublicRepo {
             query: {'name': query, 'suggestions': 'true'}, cancelToken: cancel))['accommodations'],
       );
 
+  /// UK streets, postcodes and areas from Geoapify (backend `/geo/autocomplete`), London first.
+  /// Postcode-looking input ("E1", "NW2 4", "SW1A 1AA") returns postcodes, plus one row
+  /// for a whole district ("E1") — the search bar's "stays in this postcode area".
+  Future<List<Json>> placeSuggestions(String query, {CancelToken? cancel}) async => asMapList(asMap(await api.get(
+        '/geo/autocomplete',
+        query: {'text': query.trim().toLowerCase(), 'country': 'gb', 'district': '1'},
+        cache: const Duration(minutes: 10),
+        cancelToken: cancel,
+      ))['results']);
+
   Future<SearchPage> search(Map<String, dynamic> params) async {
     final j = asMap(await api.get('/accommodations/searching', query: params, cache: const Duration(seconds: 45)));
     return SearchPage(

@@ -52,6 +52,7 @@ import { startInvoiceJob } from "./utils/invoiceJob.js";
 import { sweepExpiredHolds } from "./utils/calendarHold.js";
 import invoiceRoutes from "./Routes/invoiceRoutes.js";
 import icoRoutes from "./Routes/icoRoutes.js";
+import geoRoutes from "./Routes/geoRoutes.js";
 import { assetLinks, appleAppSiteAssociation } from "./utils/payLink.js";
 import { requireReservationAccess } from "./auth/authorize.js";
 
@@ -176,6 +177,7 @@ app.use('/api/host', hostWorkspaceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/hosts', HostRoutes);
 app.use('/api', icoRoutes);
+app.use('/api', geoRoutes);
 app.use('/api', accommodationRoutes);
 app.use('/api', messageRoutes);
 app.use("/api/reviews", reviewRoutes);

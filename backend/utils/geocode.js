@@ -1,47 +1,28 @@
 // utils/geocode.js
+import { geocode } from "./geoapify.js";
+
 export async function getLatLngFromAddress(address) {
   if (!address) return null;
 
   try {
-    // Nominatim API request
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`,
-      {
-        headers: {
-          "User-Agent": "putko-app/1.0 (your-email@example.com)", // 🔑 Required by Nominatim policy
-        },
-      }
-    );
-
-    if (!response.ok) {
-      console.error(`❌ Geocode fetch failed: ${response.status}`);
-      return null;
+    const hit = await geocode(address);
+    if (hit && hit.latitude != null && hit.longitude != null) {
+      return { latitude: hit.latitude, longitude: hit.longitude };
     }
-
-    const data = await response.json();
-
-    if (data.length > 0) {
-      const { lat, lon } = data[0];
-      return {
-        latitude: parseFloat(lat),
-        longitude: parseFloat(lon),
-      };
-    } else {
-      console.warn(`⚠️ No results for address: ${address}`);
-      return null;
-    }
+    console.warn(`⚠️ No results for address: ${address}`);
+    return null;
   } catch (error) {
-    console.error("❌ Error in geocoding:", error);
+    console.error("❌ Error in geocoding:", error.message || error);
     return null;
   }
 }
 
 /**
- * Helper with delay to respect Nominatim rate limit
- * (1 request per second recommended)
+ * Helper with a short pause between calls so bulk imports stay
+ * within Geoapify's free-tier rate limit.
  */
-export async function geocodeWithDelay(address, delay = 1200) {
+export async function geocodeWithDelay(address, delay = 250) {
   const coords = await getLatLngFromAddress(address);
-  await new Promise((resolve) => setTimeout(resolve, delay)); // ⏱️ throttle requests
+  await new Promise((resolve) => setTimeout(resolve, delay));
   return coords;
 }

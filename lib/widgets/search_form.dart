@@ -416,12 +416,15 @@ class _DestinationPickerState extends ConsumerState<_DestinationPicker> {
   Timer? _debounce;
   CancelToken? _cancel;
   List<Json> _names = [];
+  List<DestSuggestion> _places = const [];
+  CancelToken? _placeCancel;
   bool _loading = false;
 
   @override
   void dispose() {
     _debounce?.cancel();
     _cancel?.cancel();
+    _placeCancel?.cancel();
     _ctrl.dispose();
     super.dispose();
   }
@@ -429,7 +432,26 @@ class _DestinationPickerState extends ConsumerState<_DestinationPicker> {
   void _onChanged(String v) {
     setState(() {});
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 250), () => _fetch(v.trim()));
+    _debounce = Timer(const Duration(milliseconds: 120), () {
+      _fetch(v.trim());
+      _fetchPlaces(v.trim().replaceAll(RegExp(r'\s+'), ' '));
+    });
+  }
+
+  /// Streets and postcodes ("Melrose Avenue", "NW2 4LX") from Geoapify.
+  Future<void> _fetchPlaces(String q) async {
+    _placeCancel?.cancel();
+    if (q.length < DestSuggestion.minPlaceChars(q)) {
+      setState(() => _places = const []);
+      return;
+    }
+    final token = _placeCancel = CancelToken();
+    try {
+      final r = await publicRepo.placeSuggestions(q, cancel: token);
+      if (mounted && !token.isCancelled) setState(() => _places = r.map(DestSuggestion.place).whereType<DestSuggestion>().toList());
+    } catch (_) {
+      // Optional, like stay names.
+    }
   }
 
   Future<void> _fetch(String q) async {
@@ -528,7 +550,9 @@ class _DestinationPickerState extends ConsumerState<_DestinationPicker> {
           for (final n in _names)
             row(Icons.home_outlined, asString(n['name']), titleCase(asString(pick(n, 'locationDetails.city'))),
                 () => _choose(Destination.name(asString(n['name'])))),
-          if (q.isNotEmpty && matchRegions.isEmpty && matchCities.isEmpty && _names.isEmpty && !_loading)
+          if (_places.isNotEmpty) sectionTitle(t.pick('Adresy', 'Addresses')),
+          for (final p in _places) row(Icons.signpost_outlined, p.label, p.detail, () => _choose(p.toDestination())),
+          if (q.isNotEmpty && matchRegions.isEmpty && matchCities.isEmpty && _names.isEmpty && _places.isEmpty && !_loading)
             row(Icons.search, '„${_ctrl.text.trim()}“', t.pick('Hľadať túto lokalitu', 'Search this place'),
                 () => _choose(Destination.city(_ctrl.text.trim()))),
         ]),

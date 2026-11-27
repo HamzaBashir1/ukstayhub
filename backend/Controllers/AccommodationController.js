@@ -1161,6 +1161,26 @@ export const buildSearchFilters = (query = {}) => {
   handleArrayFilter(checkIn, 'checkIn', '$in');
   handleArrayFilter(meals, 'meals', '$in');
 
+  // "Near an address" (a Geoapify suggestion picked in search): stays within
+  // radiusKm (default 3, 0.5–25) of lat/lng. A bounding box is close enough at
+  // these distances. Coordinates are converted because some documents store
+  // them as strings.
+  const lat = Number(query.lat), lng = Number(query.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+    const km = Math.min(25, Math.max(0.5, Number(query.radiusKm) || 3));
+    const dLat = km / 111.32;
+    const dLng = km / (111.32 * Math.max(0.01, Math.cos((lat * Math.PI) / 180)));
+    const num = (path) => ({ $convert: { input: path, to: "double", onError: null, onNull: null } });
+    filters.$expr = {
+      $and: [
+        { $gte: [num("$location.latitude"), lat - dLat] },
+        { $lte: [num("$location.latitude"), lat + dLat] },
+        { $gte: [num("$location.longitude"), lng - dLng] },
+        { $lte: [num("$location.longitude"), lng + dLng] },
+      ],
+    };
+  }
+
   return filters;
 };
 

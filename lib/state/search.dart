@@ -117,6 +117,11 @@ class SearchState {
         case 'name':
           q['name'] = d.label;
           break;
+        case 'place':
+          q['lat'] = d.lat;
+          q['lng'] = d.lng;
+          q['radiusKm'] = 3;
+          break;
         default:
           q['city'] = d.label;
       }

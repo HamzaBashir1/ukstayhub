@@ -32,16 +32,43 @@ const _scrim = Color(0x33112A22); // bg-[#112A22]/20
 // ───────────────────────────── Suggestions ─────────────────────────────
 
 class DestSuggestion {
-  const DestSuggestion(this.type, this.label, {this.count = 0, this.cities = const [], this.regionId});
-  final String type; // region | city | name
+  const DestSuggestion(this.type, this.label, {this.count = 0, this.cities = const [], this.regionId, this.lat, this.lng, this.detail});
+  final String type; // region | city | name | place
   final String label;
   final int count;
   final List<String> cities;
   final String? regionId;
+  final double? lat;
+  final double? lng;
+
+  /// Second line for a place (area, postcode).
+  final String? detail;
+
+  /// A Geoapify result from `/geo/autocomplete`, or null without coordinates.
+  static DestSuggestion? place(Json j) {
+    final lat = j['latitude'], lng = j['longitude'];
+    final label = asString(j['label']);
+    if (lat is! num || lng is! num || label.isEmpty) return null;
+    var parts = label.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty && e != 'United Kingdom').toList();
+    // A postcode reads best as itself ("NW2 4LX"), with its area underneath.
+    final postcode = asString(j['postcode']);
+    if (asString(j['type']) == 'postcode' && postcode.isNotEmpty) parts = [postcode, ...parts.where((e) => e != postcode)];
+    return DestSuggestion('place', parts.isEmpty ? label : parts.first,
+        lat: lat.toDouble(), lng: lng.toDouble(), detail: parts.length > 1 ? parts.skip(1).join(', ') : null);
+  }
+
+  /// "E1", "NW2 4", "SW1A1AA": the start of a UK postcode. Those search from
+  /// 2 characters; anything else from 3.
+  static bool looksLikePostcode(String q) => RegExp(r'^[a-z]{1,2}\d[a-z\d]?( ?\d[a-z]{0,2})?$', caseSensitive: false).hasMatch(q.trim());
+
+  static int minPlaceChars(String q) => looksLikePostcode(q) ? 2 : 3;
+
+  String get fullLabel => detail == null ? label : '$label, $detail';
 
   Destination toDestination() => switch (type) {
         'region' => Destination.region(label, cities, regionId ?? ''),
         'name' => Destination.name(label),
+        'place' => Destination.place(fullLabel, lat!, lng!),
         _ => Destination.city(label),
       };
 }
@@ -59,8 +86,9 @@ List<DestSuggestion> destinationSuggestions(
   String query,
   List<Json> regions,
   List<Json> destinations,
-  List<String> stays,
-) {
+  List<String> stays, [
+  List<DestSuggestion> places = const [],
+]) {
   final counts = <String, int>{};
   final cities = <DestSuggestion>[];
   for (final d in destinations) {
@@ -124,6 +152,11 @@ List<DestSuggestion> destinationSuggestions(
     if (!seen.add('${s.type}:${searchKey(s.label)}')) continue;
     ranked.add((s, score(s)));
   }
+  // Streets and postcodes (Geoapify) come after the catalog's own matches.
+  if (places.isNotEmpty) {
+    final local = ranked.where((e) => e.$2 < 5).toList()..sort((a, b) => a.$2.compareTo(b.$2));
+    return [...local.take(4).map((e) => e.$1), ...places].take(9).toList();
+  }
   final direct = ranked.where((e) => e.$2 < 5).toList();
   final pool = direct.isNotEmpty ? direct : ranked.where((e) => e.$2 == 5).toList();
   pool.sort((a, b) {
@@ -173,6 +206,9 @@ class _DestinationFieldState extends ConsumerState<DestinationField> {
   Timer? _debounce;
   CancelToken? _cancel;
   List<String> _stays = const [];
+  List<DestSuggestion> _places = const [];
+  Timer? _placeDebounce;
+  CancelToken? _placeCancel;
   // Stay-name results per query (DestinationPicker.js resultsCache), so typing
   // back over earlier letters shows them again without waiting for the API.
   final Map<String, List<String>> _stayCache = {};
@@ -201,12 +237,36 @@ class _DestinationFieldState extends ConsumerState<DestinationField> {
   void dispose() {
     _debounce?.cancel();
     _cancel?.cancel();
+    _placeDebounce?.cancel();
+    _placeCancel?.cancel();
     _ctrl.dispose();
     _focus.dispose();
     super.dispose();
   }
 
+  /// Streets and postcodes ("Melrose Avenue", "NW2 4LX") from Geoapify.
+  void _loadPlaces(String text) {
+    _placeDebounce?.cancel();
+    _placeCancel?.cancel();
+    final q = text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (q.length < DestSuggestion.minPlaceChars(q)) {
+      if (_places.isNotEmpty) setState(() => _places = const []);
+      return;
+    }
+    _placeDebounce = Timer(const Duration(milliseconds: 120), () async {
+      final token = _placeCancel = CancelToken();
+      try {
+        final r = await publicRepo.placeSuggestions(q, cancel: token);
+        if (!mounted || token.isCancelled || _ctrl.text.trim().replaceAll(RegExp(r'\s+'), ' ') != q) return;
+        setState(() => _places = r.map(DestSuggestion.place).whereType<DestSuggestion>().toList());
+      } catch (_) {
+        // Optional: cities, regions and stays still show.
+      }
+    });
+  }
+
   void _loadStays(String text) {
+    _loadPlaces(text);
     _debounce?.cancel();
     final q = text.trim();
     // One letter matches nearly every stay name, so only cities/regions then.
@@ -242,6 +302,7 @@ class _DestinationFieldState extends ConsumerState<DestinationField> {
         ref.watch(tourismRegionsProvider).valueOrNull ?? const [],
         ref.watch(destinationsProvider).valueOrNull ?? const [],
         _stays,
+        _places,
       );
 
   void _choose(DestSuggestion s) {
@@ -259,6 +320,7 @@ class _DestinationFieldState extends ConsumerState<DestinationField> {
   void _clear() {
     _ctrl.clear();
     _stays = const [];
+    _places = const [];
     ref.read(searchProvider.notifier).setDestination(null);
     setState(() {});
   }
@@ -460,6 +522,7 @@ class _DestinationFieldState extends ConsumerState<DestinationField> {
                     switch (items[i].type) {
                       'name' => Icons.apartment_outlined,
                       'region' => Icons.share_location_outlined,
+                      'place' => Icons.signpost_outlined,
                       _ => Icons.location_on_outlined,
                     },
                     size: 18,
@@ -467,16 +530,22 @@ class _DestinationFieldState extends ConsumerState<DestinationField> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(items[i].label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppText.inter(size: 14, weight: FontWeight.w500, color: AppColors.neutral900)),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      Text(items[i].label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.inter(size: 14, weight: FontWeight.w500, color: AppColors.neutral900)),
+                      if (items[i].detail != null)
+                        Text(items[i].detail!,
+                            maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.inter(size: 12, color: AppColors.neutral500)),
+                    ]),
                   ),
                   const SizedBox(width: 12),
                   Text(
                     switch (items[i].type) {
                       'region' => en ? 'Region' : 'Región',
                       'name' => en ? 'Stay' : 'Ubytovanie',
+                      'place' => en ? 'Address' : 'Adresa',
                       _ => en ? 'City' : 'Mesto',
                     },
                     style: AppText.inter(size: 12, color: AppColors.neutral500),
