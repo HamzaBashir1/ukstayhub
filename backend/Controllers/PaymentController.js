@@ -51,6 +51,7 @@ import {
 } from "../utils/hostStripeSync.js";
 import { formatMoney, formatCents } from "../utils/money.js";
 import { payLinkUrl, payLinkBase } from "../utils/payLink.js";
+import { payPage, siteUrl } from "../utils/resultPage.js";
 import { sendGuestRequestClosedEmail } from "../utils/requestToBookEmails.js";
 
 // Moved to utils/hostStripeSync.js so the booking gate can call it without
@@ -1160,7 +1161,7 @@ export const createHostExpressAccount = async (req, res) => {
     // Account Links expire within minutes — always mint a fresh one, never persist.
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      ...onboardReturnUrls(req),
+      ...onboardReturnUrls(req, { accountId }),
       type: "account_onboarding",
     });
 
@@ -2242,11 +2243,82 @@ const onboardReturnUrls = (req, { accountId, returnTo } = {}) => {
   if (accountId) q.set("account", accountId);
   if (returnTo) q.set("returnTo", returnTo);
   const qs = q.toString() ? `?${q}` : "";
+  // The website lands on this backend's /host/onboard/* page (hostOnboardWebReturn),
+  // which checks the account with Stripe and links back to the host panel.
   const base =
     isAppRequest(req)
       ? `${payLinkBase(req)}/app-return/host/onboard`
-      : `${process.env.CLIENT_SITE_URL}/host/onboard`;
+      : `${(process.env.STRIPE_ONBOARD_BASE_URL || "").trim().replace(/\/+$/, "") || payLinkBase(req)}/host/onboard`;
   return { return_url: `${base}/success${qs}`, refresh_url: `${base}/refresh${qs}` };
+};
+
+const humanize = (r) => String(r).split(".").pop().replace(/_/g, " ");
+
+// GET /host/onboard/:kind — Stripe onboarding return for hosts on the website.
+// Landing here does not mean onboarding succeeded: the account is read from
+// Stripe, and the page says "ready" or names what is still missing.
+export const hostOnboardWebReturn = async (req, res) => {
+  const returnTo = String(req.query.returnTo || "");
+  const toListing = returnTo.startsWith("/host/listings");
+  const back = {
+    href: siteUrl(returnTo.startsWith("/") ? returnTo : "/host/payouts"),
+    label: toListing ? "Back to your listing" : "Go to Account & earnings",
+  };
+  const issue = (title, body, status = 200) =>
+    res.status(status).send(payPage({ icon: "warn", title, body, primary: back }));
+
+  if (req.params.kind === "refresh") {
+    return issue("Setup link expired",
+      "Your Stripe setup link expired before it was finished. Go back to Account &amp; earnings and choose <b>Continue setup</b> to get a fresh link.");
+  }
+
+  const accountId = String(req.query.account || "");
+  if (!/^acct_[A-Za-z0-9]+$/.test(accountId)) {
+    return issue("We couldn't confirm your account",
+      "Open Account &amp; earnings to see your payout status. If setup isn't finished there, choose <b>Continue setup</b>.");
+  }
+
+  try {
+    const account = await getStripe().accounts.retrieve(accountId);
+    // Same sync the account.updated webhook runs, so the host panel is current too.
+    const host = await syncHostFromStripeAccount(account).catch((err) => {
+      console.error("hostOnboardWebReturn sync failed:", err.message);
+      return null;
+    });
+    const rows = [
+      ["Details submitted", account.details_submitted ? "Yes" : "No"],
+      ["Card payments", account.charges_enabled ? "Enabled" : "Pending"],
+      ["Payouts", account.payouts_enabled ? "Enabled" : "Pending"],
+    ];
+    const due = [...new Set([...(account.requirements?.past_due || []), ...(account.requirements?.currently_due || [])])];
+    const stripeDone = account.details_submitted && account.charges_enabled && account.payouts_enabled;
+
+    if (!stripeDone) {
+      const list = due.length
+        ? `<br><br>Stripe still needs: <b>${due.slice(0, 8).map((r) => esc(humanize(r))).join(", ")}</b>`
+        : account.details_submitted
+          ? "<br><br>Stripe is reviewing your details. This usually takes a few minutes."
+          : "";
+      return res.send(payPage({ icon: "warn", title: "Stripe needs more information",
+        body: `Your payout account isn't ready yet, so payouts are paused.${list}`,
+        rows, primary: back }));
+    }
+
+    const missingBilling = host ? missingBillingFieldsOf(host) : [];
+    if (missingBilling.length) {
+      return res.send(payPage({ icon: "warn", title: "One last step",
+        body: "Stripe has verified you. Add your billing details in Account &amp; earnings so your listings can be booked.",
+        rows, primary: back }));
+    }
+
+    return res.send(payPage({ icon: "ok", title: "Your account is ready",
+      body: "Stripe has verified your details. You can now receive payouts for your bookings.",
+      rows, primary: back }));
+  } catch (err) {
+    logStripeCall("accounts.retrieve", { accountId }, "error", err);
+    return issue("We couldn't confirm your account",
+      "Stripe could not be reached just now. Open Account &amp; earnings to check your payout status.", 502);
+  }
 };
 
 // GET /app-return/host/onboard/:kind — Stripe onboarding finished (success) or
@@ -2327,44 +2399,6 @@ const isPhone = (req) => /iphone|ipad|ipod|android/i.test(req.get("user-agent") 
 
 /** In-app address for a path, e.g. ukstayhub://app/pay/123 (the app's custom scheme). */
 const appUrl = (path) => `ukstayhub://app${path}`;
-
-const ICONS = {
-  ok: { bg: "#319a81", svg: '<path d="M20 6 9 17l-5-5"/>' },
-  fail: { bg: "#dc2626", svg: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>' },
-  warn: { bg: "#d97706", svg: '<path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/>' },
-  pay: { bg: "#319a81", svg: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/>' },
-};
-const ICON_ALIASES = { "✅": "ok", "❌": "fail", "⚠️": "warn", "⏱️": "warn", "📅": "warn", "↩️": "warn", "💳": "pay" };
-
-/** Same look as the app's result screens: round icon, title, message, details card. */
-const payPage = ({ title, body, icon = "ok", rows, primary, secondary, autoOpen }) => {
-  const ic = ICONS[ICON_ALIASES[icon] || icon] || ICONS.ok;
-  const card = rows?.length
-    ? `<div class="card">${rows
-        .map(([k, v]) => `<div class="row"><span>${esc(k)}</span><b>${esc(v)}</b></div>`)
-        .join("")}</div>`
-    : "";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} · UK Stay Hub</title>
-<style>*{box-sizing:border-box}body{font-family:-apple-system,"Segoe UI",Roboto,Inter,sans-serif;background:#f8f5ef;color:#1e3e2b;margin:0;padding:48px 16px}
-.w{max-width:560px;margin:0 auto;text-align:center}
-.brand{font-weight:800;color:#319a81;font-size:18px;margin-bottom:32px}
-.ic{width:80px;height:80px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;background:${ic.bg}}
-.ic svg{width:40px;height:40px;stroke:#fff;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
-h1{font-family:Georgia,"Times New Roman",serif;font-weight:600;font-size:28px;margin:24px 0 16px}
-p{color:#64748b;font-size:15px;line-height:1.6;margin:0}
-.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:10px 16px;margin-top:20px;text-align:left}
-.row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:14px}.row span{color:#737373}.row b{text-align:right;word-break:break-all}
-.b{display:block;margin-top:12px;padding:15px;border-radius:12px;font-weight:700;font-size:15px;text-decoration:none}
-.p{background:#319a81;color:#fff}.s{border:1px solid #e5e5e5;background:#fff;color:#1e3e2b}
-.acts{margin-top:32px}</style></head>
-<body><div class="w"><div class="brand">UK Stay Hub</div>
-<div class="ic"><svg viewBox="0 0 24 24">${ic.svg}</svg></div>
-<h1>${esc(title)}</h1><p>${body}</p>${card}
-<div class="acts">${primary ? `<a class="b p" href="${esc(primary.href)}">${esc(primary.label)}</a>` : ""}
-${secondary ? `<a class="b s" href="${esc(secondary.href)}">${esc(secondary.label)}</a>` : ""}</div>
-</div>${autoOpen ? `<script>setTimeout(function(){location.href=${JSON.stringify(autoOpen)}},300)</script>` : ""}</body></html>`;
-};
 
 const closedPage = (res, link) => {
   if (link.state === "expired") {

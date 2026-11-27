@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -223,8 +222,9 @@ class _HostProfileScreenState extends ConsumerState<HostProfileScreen> {
       setState(() => _photoError = t.pick('Vyberte fotku JPEG, PNG, WebP alebo HEIC.', 'Choose a JPEG, PNG, WebP or HEIC photo.'));
       return;
     }
-    if (await x.length() > 12 * 1024 * 1024) {
-      setState(() => _photoError = t.pick('Vyberte fotku menšiu ako 12 MB.', 'Choose a photo smaller than 12 MB.'));
+    // Matches the server limit (MAX_UPLOAD_BYTES in HostProfileController).
+    if (await x.length() > 10 * 1024 * 1024) {
+      setState(() => _photoError = t.pick('Vyberte fotku menšiu ako 10 MB.', 'Choose a photo smaller than 10 MB.'));
       return;
     }
     setState(() {
@@ -232,16 +232,16 @@ class _HostProfileScreenState extends ConsumerState<HostProfileScreen> {
       _photoError = null;
     });
     try {
-      final r = await hostRepo.uploadProfilePhoto(File(x.path));
+      final r = await hostRepo.uploadProfilePhoto(x);
       final url = asStringOrNull(r['avatarUrl']);
       if (mounted && url != null) _change((f) => f.avatarUrl = url, field: 'avatarUrl');
     } catch (e) {
       final code = e is ApiException ? e.code : null;
       if (mounted) {
-        setState(() => _photoError = code == 'unsupportedType'
+        setState(() => _photoError = (code == 'unsupportedType' || code == 'contentTypeInvalid')
             ? t.pick('Vyberte fotku JPEG, PNG, WebP alebo HEIC.', 'Choose a JPEG, PNG, WebP or HEIC photo.')
-            : code == 'fileTooLarge'
-                ? t.pick('Vyberte fotku menšiu ako 12 MB.', 'Choose a photo smaller than 12 MB.')
+            : (code == 'fileTooLarge' || code == 'tooLarge')
+                ? t.pick('Vyberte fotku menšiu ako 10 MB.', 'Choose a photo smaller than 10 MB.')
                 : code == 'corruptImage'
                     ? t.pick('Táto fotka je poškodená alebo sa nedá prečítať.', 'This photo is damaged or cannot be read.')
                     : t.pick('Fotka sa nenahrala. Skontrolujte pripojenie a skúste to znova.', 'The photo was not uploaded. Check your connection and try again.'));

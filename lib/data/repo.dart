@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
@@ -365,10 +364,12 @@ class HostRepo {
   Future<Json> saveProfile(Json p) async => asMap(asMap(await api.put('/host/host-profile', body: p))['profile']);
 
   /// Same three-step flow as prepareHostProfilePhoto on the site.
-  Future<Json> uploadProfilePhoto(File file) async {
+  /// Takes the picker's XFile (not dart:io File) so it also works on the web.
+  Future<Json> uploadProfilePhoto(XFile file) async {
     final bytes = await file.readAsBytes();
-    final name = file.path.split(Platform.pathSeparator).last;
-    final type = name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    final name = file.name;
+    final ext = name.split('.').last.toLowerCase();
+    final type = ext == 'png' ? 'image/png' : ext == 'webp' ? 'image/webp' : 'image/jpeg';
     final req = asMap(await api.post('/host/host-profile-photo/upload-url',
         body: {'name': name, 'size': bytes.length, 'contentType': type}));
     final origin = Uri.parse(AppConfig.apiBaseUrl).origin;

@@ -14,6 +14,8 @@ import {
 } from "../utils/emailVerificationCode.js";
 import Host from "../models/Host.js";
 import LoginHistory from "../models/LoginHistory.js";
+import { payLinkBase } from "../utils/payLink.js";
+import { payPage, siteUrl } from "../utils/resultPage.js";
 
 const generateToken = (user) => {
   return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET_KEY, {
@@ -246,7 +248,9 @@ export const requestPasswordReset = async (req, res) => {
 
     const transporter = getTransporter();
 
-    const resetUrl = `${process.env.CLIENT_SITE_URL}/reset-password/${resetToken}`;
+    // Served by this backend (resetPasswordPage), so it works whether or not the website is up.
+    const resetBase = (process.env.PASSWORD_RESET_BASE_URL || "").trim().replace(/\/+$/, "") || payLinkBase(req);
+    const resetUrl = `${resetBase}/reset-password/${encodeURIComponent(resetToken)}`;
     const { subject, html, text, attachments } = buildPasswordResetEmail({
       resetUrl,
       // Kept in step with resetPasswordExpires above (Date.now() + 3600000).
@@ -282,14 +286,70 @@ const sendResetSuccessEmail = async (userEmail) => {
   });
 };
 
+const findByResetToken = async (token, role) => {
+  const q = { resetPasswordToken: String(token), resetPasswordExpires: { $gt: Date.now() } };
+  return (
+    (role !== "host" && (await User.findOne(q))) ||
+    (role !== "guest" && (await Host.findOne(q))) ||
+    null
+  );
+};
+
+// GET /reset-password/:token — the emailed link. Shows the new-password form
+// (it posts to /api/auth/reset-password), or an "expired" page straight away.
+export const resetPasswordPage = async (req, res) => {
+  const { token } = req.params;
+  const forgot = { href: siteUrl("/zabudnute-heslo"), label: "Request a new link" };
+  try {
+    if (!(await findByResetToken(token))) {
+      return res.status(410).send(payPage({ icon: "fail", title: "Link expired or invalid",
+        body: "This password reset link has expired or was already used. Request a new one and use it within an hour.",
+        primary: forgot }));
+    }
+    const form = `<form id="f" style="text-align:left;margin-top:24px" novalidate>
+<label for="p1">New password</label><input id="p1" type="password" autocomplete="new-password" minlength="8" required>
+<label for="p2">Confirm new password</label><input id="p2" type="password" autocomplete="new-password" minlength="8" required>
+<div class="err" id="e" role="alert"></div>
+<button class="b p" id="go" type="submit">Reset password</button></form>
+<a class="b p" id="login" href="${siteUrl("/login")}" style="display:none">Go to login</a>`;
+    // JSON.stringify + "<" escape keeps the token inert inside the script tag.
+    const script = `<script>
+var T=${JSON.stringify(String(token)).replace(/</g, "\\u003c")};
+document.getElementById("f").onsubmit=async function(ev){ev.preventDefault();
+var p1=document.getElementById("p1").value,p2=document.getElementById("p2").value,e=document.getElementById("e"),b=document.getElementById("go");
+if(p1.length<8){e.textContent="Password must be at least 8 characters.";return}
+if(p1!==p2){e.textContent="Passwords do not match.";return}
+e.textContent="";b.disabled=true;b.textContent="Resetting…";
+try{var r=await fetch("/api/auth/reset-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:T,newPassword:p1})});
+var d=await r.json().catch(function(){return{}});
+if(!r.ok)throw new Error(d.message||"Something went wrong. Please try again.");
+document.querySelector("h1").textContent="Password updated";
+document.querySelector(".w > p").textContent="Your password has been reset. You can now log in with your new password.";
+document.querySelector(".ic").style.background="#319a81";
+document.querySelector(".ic svg").innerHTML='<path d="M20 6 9 17l-5-5"/>';
+document.getElementById("f").style.display="none";document.getElementById("login").style.display="block";
+}catch(x){e.textContent=x.message;b.disabled=false;b.textContent="Reset password"}};
+</script>`;
+    return res.send(payPage({ icon: "lock", title: "Set a new password",
+      body: "Choose a new password for your UK Stay Hub account. Use at least 8 characters.",
+      html: form, script }));
+  } catch (err) {
+    console.error("resetPasswordPage error:", err);
+    return res.status(500).send(payPage({ icon: "warn", title: "Something went wrong",
+      body: "Please open the link from your email again in a moment.", primary: forgot }));
+  }
+};
+
 export const resetPassword = async (req, res) => {
   const { token, newPassword, role } = req.body;
 
   try {
     
-    const user = role === "guest"
-      ? await User.findOne({ resetPasswordToken: token, resetPasswordExpires: { $gt: Date.now() } })
-      : await Host.findOne({ resetPasswordToken: token, resetPasswordExpires: { $gt: Date.now() } });
+    if (!token || typeof newPassword !== "string" || newPassword.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters" });
+    }
+    // The emailed link carries no role, so a missing role checks both account types.
+    const user = await findByResetToken(token, role);
 
     if (!user) {
       return res.status(400).json({ message: 'Invalid or expired token' });

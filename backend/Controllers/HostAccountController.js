@@ -177,7 +177,9 @@ export const updateHostAccount = async (req, res) => {
         return res.status(400).json({ message: copy.subjectTypeInvalid });
       }
       const isBusiness = subjectType === "business";
-      const countryCode = (patch.countryCode ?? host.countryCode ?? "GB").trim().toUpperCase();
+      let countryCode = String(patch.countryCode ?? host.countryCode ?? "GB").trim().toUpperCase();
+      // "UK" is not an ISO code; Stripe and invoices need "GB".
+      if (countryCode === "UK") countryCode = "GB";
       const isSlovak = countryCode === "SK";
 
       const companyName = (patch.companyName ?? host.companyName ?? "").trim();
