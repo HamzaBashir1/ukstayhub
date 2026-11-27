@@ -1,7 +1,13 @@
 import 'package:flutter/foundation.dart';
 
-/// Build-time configuration. Override with --dart-define, e.g.
-///   flutter run --dart-define=API_BASE_URL=https://backend-9k3q.onrender.com/api
+/// Build-time configuration. Which backend the app talks to:
+///   flutter run                       (debug)    → backend on this Mac (port 5001)
+///   flutter build apk / ipa / web     (release)  → production API (Railway)
+///   flutter run --profile / --release            → production API (Railway)
+/// Overrides with --dart-define:
+///   LOCAL_API=false   → production even in debug (e.g. on a real phone)
+///   LOCAL_API=true    → this Mac even in a release/profile build
+///   API_BASE_URL=https://…/api  → any other server
 ///
 /// Nothing secret lives here: the app talks only to the UK Stay Hub API, which holds
 /// every key (Stripe, Cloudinary secret, Google). The Cloudinary values below
@@ -10,17 +16,24 @@ class AppConfig {
   AppConfig._();
 
   static const String _apiBaseUrlOverride = String.fromEnvironment('API_BASE_URL');
+  /// Local backend in debug runs, production in release/profile builds,
+  /// unless LOCAL_API is passed explicitly.
+  static const bool _localApi =
+      bool.hasEnvironment('LOCAL_API') ? bool.fromEnvironment('LOCAL_API') : kDebugMode;
+
+  /// The production backend on Railway.
+  static const String productionApiUrl = 'https://ukstayhub-production.up.railway.app/api';
 
   /// Local backend port. Not 5000: macOS AirPlay Receiver holds that port.
   static const int _localApiPort = 5001;
 
-  /// The API root. A --dart-define wins; otherwise point at the local backend
-  /// on the dev machine. The Android emulator reaches the host Mac at 10.0.2.2
-  /// (its own `localhost` is the emulator); iOS Simulator, desktop and web
-  /// share the Mac's network, so `localhost` works there.
+  /// The API root: API_BASE_URL if given, else the local backend in debug and
+  /// production in release (see [_localApi]). Locally the Android emulator reaches the host Mac at
+  /// 10.0.2.2 (its own `localhost` is the emulator); iOS Simulator, desktop and
+  /// web share the Mac's network, so `localhost` works there.
   static String get apiBaseUrl {
     if (_apiBaseUrlOverride.isNotEmpty) return _apiBaseUrlOverride;
-    // return 'https://backend-9k3q.onrender.com/api';
+    if (!_localApi) return productionApiUrl;
     final host = !kIsWeb && defaultTargetPlatform == TargetPlatform.android ? '10.0.2.2' : 'localhost';
     return 'http://$host:$_localApiPort/api';
   }
